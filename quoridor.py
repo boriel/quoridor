@@ -28,7 +28,7 @@ NUM_WALLS = 10
 # Cell colors
 CELL_BORDER_COLOR = Color(40, 40, 40)
 CELL_COLOR = Color(120, 90, 60)
-CELL_VALID_MOVE = Color(40, 120, 120) # Cyan
+CELL_VALID_COLOR = Color(40, 120, 120) # Cyan
 
 # Wall Color
 WALL_COLOR = Color(10, 10, 10)
@@ -271,6 +271,7 @@ class Cell(Drawable):
         height = CELL_HEIGHT,
         color = CELL_COLOR,
         wall_color = WALL_COLOR,
+        focus_color = CELL_VALID_COLOR,
         border_color = CELL_BORDER_COLOR,
         border_size = CELL_BORDER_SIZE,
         pawn = None # Reference to the Pawn this cell contains or None
@@ -285,11 +286,14 @@ class Cell(Drawable):
         self.height = height
         self.border_size = border_size
         self.wall_color = wall_color
+        self.normal_color = color
+        self.focus_color = focus_color
         self.pawn = pawn
         self.board = board
         self.walls = [] # Walls lists
         self.i = i
         self.j = j
+        self.has_focus = False # True if mouse on cell
 
         # Available paths
         self.path = {}
@@ -311,6 +315,28 @@ class Cell(Drawable):
 
         if self.pawn:
             self.pawn.draw()
+
+
+    def onMouseMotion(self, x, y):
+        if not self.rect.collidepoint(x, y):
+            self.set_focus(False)
+            return
+
+        if self.has_focus or self.pawn:
+            return
+
+        if self.board.current_player.can_move(self.i, self.j):
+            self.set_focus(True)
+
+
+    def set_focus(self, val):
+        val = bool(val)
+        if self.has_focus == val:
+            return
+
+        self.color = self.focus_color if val else self.normal_color
+        self.has_focus = val
+        self.draw()
 
 
     @property
@@ -418,23 +444,30 @@ class Board(Drawable):
         return col >= 0 and col < self.cols and row >= 0 and row < self.rows
 
 
-    def onMouseClick(self):
+    def onMouseClick(self, x, y):
         ''' Dispatch mouse click Event
         '''
-        x, y = pygame.mouse.get_pos()
+        cell = self.which_cell(x, y)
+        if cell is not None:
+            pawn = self.current_player
+            if not pawn.can_move(cell.i, cell.j):
+                return
 
+            pawn.move_to(cell.i, cell.j)
+            pawn.cell = cell
+            cell.set_focus(False)
+            self.draw()
+            self.next_player()
+            return
+
+
+    def onMouseMotion(self, x, y):
+        ''' Get mouse motion event and acts accordingly
+        '''
         for row in self.board:
             for cell in row:
-                if cell.rect.collidepoint(x, y): # Click on cell?
-                    pawn = self.pawns[self.player]
-                    if not pawn.can_move(cell.i, cell.j):
-                        return
+                cell.onMouseMotion(x, y)
 
-                    pawn.move_to(cell.i, cell.j)
-                    pawn.cell = cell
-                    self.draw()
-                    self.next_player()
-                    return
 
     @property
     def rect(self):
@@ -443,16 +476,30 @@ class Board(Drawable):
         return Rect(self.board[0][0].x, self.board[0][0].y, width, height)
 
 
-    def onMouseMotion(self):
-        ''' Get mouse motion event and acts accordingly
-        '''
-        x, y = pygame.mouse.get_pos()
-
-
     def next_player(self):
         ''' Switchs to next player
         '''
         self.player = (self.player + 1) % self.num_players
+
+
+    def which_cell(self, x, y):
+        ''' Returns an instance of the cell for which (x, y) screen coord
+        matches. Otherwise, returns None if no cell is at (x, y) screen
+        coords.
+        '''
+        for row in self.board:
+            for cell in row:
+                if cell.rect.collidepoint(x, y):
+                    return cell
+
+        return None
+
+
+    @property
+    def current_player(self):
+        ''' Returns current player's pawn
+        '''
+        return self.pawns[self.player]
 
 
 
@@ -466,10 +513,12 @@ def input(events):
                 sys.exit(0)
 
         if event.type == MOUSEBUTTONDOWN:
-            board.onMouseClick()
+            x, y = pygame.mouse.get_pos()
+            board.onMouseClick(x, y)
 
         if event.type == MOUSEMOTION:
-            board.onMouseMotion()
+            x, y = pygame.mouse.get_pos()
+            board.onMouseMotion(x, y)
 
 
 pygame.init()
