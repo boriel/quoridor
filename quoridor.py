@@ -25,6 +25,12 @@ DEF_COLS = 9
 # Number of Walls per player
 NUM_WALLS = 10
 
+### COLORS ###
+# Board Background and Border color and look
+BOARD_BG_COLOR = Color(240, 255, 255)
+BOARD_BRD_COLOR = Color(0, 0, 40)
+BOARD_BRD_SIZE = 1
+
 # Cell colors
 CELL_BORDER_COLOR = Color(40, 40, 40)
 CELL_COLOR = Color(120, 90, 60)
@@ -53,12 +59,17 @@ class Drawable(object):
     ''' Abstract drawable class
     '''
     def __init__(self, color = None,
-                    border_color = None):
+                    border_color = None,
+                    border_size = None):
         self.color = color
         self.border_color = border_color
+        self.border_size = border_size
 
     def draw(self):
         if self.color is None or self.border_color is None:
+            return
+
+        if self.border_size is None:
             return
 
         r = self.rect
@@ -356,8 +367,12 @@ class Board(Drawable):
         screen,
         rows = DEF_ROWS,
         cols = DEF_COLS,
-        cell_padding = CELL_PAD):
+        cell_padding = CELL_PAD,
+        color = BOARD_BG_COLOR,
+        border_color = BOARD_BRD_COLOR,
+        border_size = BOARD_BRD_SIZE):
 
+        Drawable.__init__(self, color, border_color, border_size)
         self.screen = screen
         self.rows = rows
         self.cols = cols
@@ -422,6 +437,8 @@ class Board(Drawable):
     def draw(self):
         ''' Draws a squared n x n board, defaults
         to the standard 9 x 9 '''
+        Drawable.draw(self)
+
         for y in range(self.rows):
             for x in range(self.cols):
                 self.board[y][x].draw()
@@ -464,16 +481,80 @@ class Board(Drawable):
     def onMouseMotion(self, x, y):
         ''' Get mouse motion event and acts accordingly
         '''
+        if not self.rect.collidepoint(x, y):
+            return
+
         for row in self.board:
             for cell in row:
                 cell.onMouseMotion(x, y)
 
+        if self.which_cell(x, y):
+            return # The focus was on a cell, we're done
+
+        if not self.current_player.walls:
+            return # The current player has run out of walls. We're done
+
+        # Wall: Guess which top-left cell is it
+        j = (x - self.x) / (self.board[0][0].width + self.cell_pad)
+        i = (y - self.y) / (self.board[0][0].height + self.cell_pad)
+        cell = self.board[i][j]
+
+        # Wall: Guess if it is horizontal or vertical
+        horiz = x < (cell.x + cell.width)
+        if horiz:
+            if j > 7:
+                j = 7
+                cell = self.board[i][j]
+
+            x = cell.x
+            y = cell.y + cell.height
+            w = self.cell_pad + 2 * cell.width
+            h = self.cell_pad
+        else:
+            if i > 7:
+                i = 7
+                cell = self.board[i][j]
+
+            x = cell.x + cell.width
+            y = cell.y
+            w = self.cell_pad
+            h = self.cell_pad + 2 * cell.height
+
+        if i > 7 or j > 7:
+            return
+
+        self.draw()
+        r = Rect(cell)
+        pygame.draw.rect(screen, cell.wall_color, Rect(x, y, w, h), 0)
+
+
+    @property
+    def x(self):
+        ''' Absolute left coordinate
+        '''
+        return self.board[0][0].x
+
+
+    @property
+    def y(self):
+        ''' Absolute left coordinate
+        '''
+        return self.board[0][0].y
+
+
+    @property
+    def width(self):
+        return (self.cell_pad + self.board[0][0].width) * self.cols
+
+
+    @property
+    def height(self):
+        return (self.cell_pad + self.board[0][0].height) * self.rows
+
 
     @property
     def rect(self):
-        w = (self.cell_pad + self.board[0][0].width) * self.cols
-        h = (self.cell_pad + self.board[0][0].height) * self.rows
-        return Rect(self.board[0][0].x, self.board[0][0].y, width, height)
+        return Rect(self.x, self.y, self.width, self.height)
 
 
     def next_player(self):
