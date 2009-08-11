@@ -223,15 +223,17 @@ class Wall(Drawable):
     def __init__(self,
         board, # parent object
         surface,
+        color,
         row = None, # Wall coordinates
         col = None,
         horiz = None, # whether this wall lays horizontal o vertically
         ):
         self.board = board
-        self.surface = surface
+        self.screen = surface
         self.horiz = horiz
         self.col = col
         self.row = row
+        self.color = color
 
     @property
     def coords(self):
@@ -266,6 +268,31 @@ class Wall(Drawable):
             h = self.board.cell_pad + 2 * cell.width
 
         return Rect(x, y, w, h)
+
+
+    def draw(self):
+        if color is None:
+            return
+
+        pygame.draw.rect(screen, self.color, self.rect, 0)
+
+
+    def collides(self, wall):
+        ''' Returns if the given wall collides with this one
+        '''
+        if self.horiz == wall.horiz:
+            wc = wall.coords
+            for c in self.coords:
+                if c in wc:
+                    return True
+
+            return False
+
+        # Only can collide if they form a cross
+        if self.col == wall.col and self.row == wall.row:
+            return True
+
+        return False
 
 
 class Cell(Drawable):
@@ -377,6 +404,7 @@ class Board(Drawable):
         self.rows = rows
         self.cols = cols
         self.cell_pad = cell_padding
+        self.mouse_wall = None # Wall painted on mouse move
 
         self.board = []
         for i in range(rows):
@@ -401,7 +429,7 @@ class Board(Drawable):
         self.regenerate_board(CELL_COLOR, CELL_BORDER_COLOR)
         self.player = 0 # Current player 0 or 1
         self.num_players = DEFAULT_NUM_PLAYERS
-
+        self.walls = [] # Walls placed on board
 
 
     def regenerate_board(self, c_color, cb_color, c_width = CELL_WIDTH,
@@ -443,6 +471,9 @@ class Board(Drawable):
             for x in range(self.cols):
                 self.board[y][x].draw()
 
+        for wall in self.walls:
+            wall.draw()
+
 
     def cell(self, row, col):
         ''' Returns board cell at the given
@@ -477,10 +508,33 @@ class Board(Drawable):
             self.next_player()
             return
 
+        wall = self.wall(x, y)
+        if not wall:
+            return
+
+        if self.can_put_wall(wall):
+            self.walls += [wall]
+            i = wall.row
+            j = wall.col
+            if wall.horiz:
+                self.board[i][j].path['S'] = False
+                self.board[i + 1][j].path['N'] = False
+                self.board[i][j + 1].path['S'] = False
+                self.board[i + 1][j + 1].path['N'] = False
+            else:
+                self.board[i][j].path['W'] = False
+                self.board[i + 1][j].path['W'] = False
+                self.board[i][j + 1].path['E'] = False
+                self.board[i + 1][j + 1].path['E'] = False
+
+            self.current_player.walls -= 1
+            self.next_player()
+
 
     def onMouseMotion(self, x, y):
         ''' Get mouse motion event and acts accordingly
         '''
+
         if not self.rect.collidepoint(x, y):
             return
 
@@ -489,10 +543,46 @@ class Board(Drawable):
                 cell.onMouseMotion(x, y)
 
         if self.which_cell(x, y):
+            if self.mouse_wall:
+                self.mouse_wall = None
+                self.draw()
+
             return # The focus was on a cell, we're done
 
         if not self.current_player.walls:
             return # The current player has run out of walls. We're done
+
+        wall = self.wall(x, y)
+        if not wall:
+            return
+
+        if self.can_put_wall(wall):
+            self.mouse_wall = wall
+            self.draw()
+            wall.draw()
+
+
+    def can_put_wall(self, wall):
+        ''' Returns whether the given wall can be put
+        on the board.
+        '''
+        if not self.current_player.walls:
+            return False
+
+        # Check if any wall has already got that place...
+        for w in self.walls:
+            if wall.collides(w):
+                return False
+
+        return True
+
+
+    def wall(self, x, y):
+        ''' Returns which wall is below mouse cursor at x, y coords.
+        Returns None if no wall matches x, y coords
+        '''
+        if not self.rect.collidepoint(x, y):
+            return None
 
         # Wall: Guess which top-left cell is it
         j = (x - self.x) / (self.board[0][0].width + self.cell_pad)
@@ -504,28 +594,14 @@ class Board(Drawable):
         if horiz:
             if j > 7:
                 j = 7
-                cell = self.board[i][j]
-
-            x = cell.x
-            y = cell.y + cell.height
-            w = self.cell_pad + 2 * cell.width
-            h = self.cell_pad
         else:
             if i > 7:
                 i = 7
-                cell = self.board[i][j]
-
-            x = cell.x + cell.width
-            y = cell.y
-            w = self.cell_pad
-            h = self.cell_pad + 2 * cell.height
 
         if i > 7 or j > 7:
-            return
+            return None
 
-        self.draw()
-        r = Rect(cell)
-        pygame.draw.rect(screen, cell.wall_color, Rect(x, y, w, h), 0)
+        return Wall(self, self.screen, cell.wall_color, i, j, horiz)
 
 
     @property
