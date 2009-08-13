@@ -105,6 +105,7 @@ class Pawn(Drawable):
         self.board = board
         self.walls = walls # Walls per player
         self.__cell = None
+        self.set_goal()
 
 
     def __set_cell(self, cell):
@@ -123,6 +124,20 @@ class Pawn(Drawable):
         return self.board[row][col]
 
     cell = property(__get_cell, __set_cell)
+
+
+    def set_goal(self):
+        ''' Sets a list of possible goals (cells) for this
+        player.
+        '''
+        if self.i == 0:
+            self.goals = [(self.board.rows - 1, x) for x in range(self.board.cols)]
+        elif self.i == self.board.rows - 1:
+            self.goals = [(0, x) for x in range(self.board.cols)]
+        elif self.j == self.board.cols - 1:
+            self.goals = [(x, 0) for x in range(self.board.cols)]
+        else:
+            self.goals = [(x, self.board.cols - 1) for x in range(self.board.rows)]
 
 
     def draw(self):
@@ -214,6 +229,25 @@ class Pawn(Drawable):
         if self.board.in_range(i, j):
             self.i = i
             self.j = j
+
+
+    def can_reach_goal(self):
+        ''' True if this player can reach a goal,
+        false if it is blocked and there's no way to reach it.
+        '''
+        if (self.i, self.j) in self.goals: # Already in goal?
+            return True
+
+        for i, j in self.valid_moves:
+            x = self.i
+            y = self.j
+            self.move_to(i, j)
+            result = self.can_reach_goal()
+            self.move_to(x, y)
+            if result:
+                return True
+
+        return False
 
 
 
@@ -572,6 +606,10 @@ class Board(Drawable):
         # Check if any wall has already got that place...
         for w in self.walls:
             if wall.collides(w):
+                return False
+
+        for pawn in self.pawns:
+            if not pawn.can_reach_goal():
                 return False
 
         return True
