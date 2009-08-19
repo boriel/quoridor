@@ -47,6 +47,7 @@ PAWN_BORDER_COL = Color(188, 188, 80) # Yellow
 # Avaiable directions
 dirs = ['N', 'S', 'E', 'W']
 dirs_delta = {'N': (-1, 0), 'S': (+1, 0), 'E': (0, -1), 'W': (0, +1)}
+opposite_dirs = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
 
 
 def manhattan((a, b), (c, d)):
@@ -231,19 +232,28 @@ class Pawn(Drawable):
             self.j = j
 
 
-    def can_reach_goal(self):
+    def can_reach_goal(self, board = None):
         ''' True if this player can reach a goal,
         false if it is blocked and there's no way to reach it.
         '''
         if (self.i, self.j) in self.goals: # Already in goal?
             return True
 
+        if board is None:
+            board = [[False] * self.board.cols for i in range(self.board.rows)]
+
+        if board[self.i][self.j]:
+            return False
+
+        board[self.i][self.j] = True
+
         for i, j in self.valid_moves:
             x = self.i
             y = self.j
             self.move_to(i, j)
-            result = self.can_reach_goal()
+            result = self.can_reach_goal(board)
             self.move_to(x, y)
+            board[i][j] = False
             if result:
                 return True
 
@@ -268,6 +278,13 @@ class Wall(Drawable):
         self.col = col
         self.row = row
         self.color = color
+
+
+    def __eq__(self, other):
+        return self.horiz == other.horiz and \
+                self.col == other.col and \
+                self.row == other.row
+
 
     @property
     def coords(self):
@@ -380,6 +397,23 @@ class Cell(Drawable):
             self.path['S'] = False
         elif j == self.board.cols - 1:
             self.path['W'] = False
+
+
+    def set_path(self, direction, value):
+        ''' Sets the path 'N', 'S', 'W', E', to True or False.
+        False means no way in that direction. Updates neighbour
+        cells accordingly.
+        '''
+        d = direction.upper()
+        self.path[d] = value
+        i1, j1 = dirs_delta[d]
+        i = self.i + i1
+        j = self.j + j1
+
+        if not self.board.in_range(i, j):
+            return # Nothing to do
+
+        self.board[i][j].path[opposite_dirs[d]] = value
 
 
     def draw(self):
@@ -526,6 +560,45 @@ class Board(Drawable):
         return col >= 0 and col < self.cols and row >= 0 and row < self.rows
 
 
+    def putWall(self, wall):
+        ''' Puts the given wall on the board.
+        The cells are updated accordingly
+        '''
+        if wall in self.walls:
+            return # If already put, nothing to do
+
+        self.walls += [wall]
+
+        i = wall.row
+        j = wall.col
+
+        if wall.horiz:
+            self.board[i][j].set_path('S', False)
+            self.board[i][j + 1].set_path('S', False)
+        else:
+            self.board[i][j].set_path('W', False)
+            self.board[i + 1][j].set_path('W', False)
+
+
+    def removeWall(self, wall):
+        ''' Removes a wall from the board.
+        The cells are updated accordingly
+        '''
+        if wall not in self.walls:
+            return # Already removed, nothing to do
+
+        self.walls.remove(wall)
+        i = wall.row
+        j = wall.col
+
+        if wall.horiz:
+            self.board[i][j].set_path('S', True)
+            self.board[i][j + 1].set_path('S', True)
+        else:
+            self.board[i][j].set_path('W', True)
+            self.board[i + 1][j].set_path('W', True)
+
+
     def onMouseClick(self, x, y):
         ''' Dispatch mouse click Event
         '''
@@ -547,20 +620,7 @@ class Board(Drawable):
             return
 
         if self.can_put_wall(wall):
-            self.walls += [wall]
-            i = wall.row
-            j = wall.col
-            if wall.horiz:
-                self.board[i][j].path['S'] = False
-                self.board[i + 1][j].path['N'] = False
-                self.board[i][j + 1].path['S'] = False
-                self.board[i + 1][j + 1].path['N'] = False
-            else:
-                self.board[i][j].path['W'] = False
-                self.board[i + 1][j].path['W'] = False
-                self.board[i][j + 1].path['E'] = False
-                self.board[i + 1][j + 1].path['E'] = False
-
+            self.putWall(wall)
             self.current_player.walls -= 1
             self.next_player()
 
@@ -608,11 +668,14 @@ class Board(Drawable):
             if wall.collides(w):
                 return False
 
+        result = True
+        self.putWall(wall)
         for pawn in self.pawns:
             if not pawn.can_reach_goal():
-                return False
-
-        return True
+                result = False
+                break
+        self.removeWall(wall)
+        return result
 
 
     def wall(self, x, y):
