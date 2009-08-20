@@ -173,6 +173,10 @@ class Pawn(Drawable):
         I, J = dirs_delta[d]
         I += self.i
         J += self.j
+
+        if not self.board.in_range(I, J):
+            return False
+
         if self.board[I][J].pawn is None: # Is it free?
             return [(I, J)]
 
@@ -188,6 +192,10 @@ class Pawn(Drawable):
                 Ia, Ja = dirs_delta[di]
                 Ia += I
                 Ja += J
+
+                if not self.board.in_range(Ia, Ja):
+                    continue
+
                 if self.board[Ia][Ja].pawn is None:
                     result += [(Ia, Ja)]
 
@@ -253,10 +261,10 @@ class Pawn(Drawable):
             self.move_to(i, j)
             result = self.can_reach_goal(board)
             self.move_to(x, y)
-            board[i][j] = False
             if result:
                 return True
 
+        board[self.i][self.j] = False
         return False
 
 
@@ -322,7 +330,7 @@ class Wall(Drawable):
 
 
     def draw(self):
-        if color is None:
+        if self.color is None:
             return
 
         pygame.draw.rect(screen, self.color, self.rect, 0)
