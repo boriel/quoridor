@@ -315,6 +315,7 @@ class Wall(Drawable):
 
         return [(self.row, self.col), (self.row + 1, self.col)]
 
+
     @property
     def rect(self):
         c = self.coords
@@ -633,6 +634,7 @@ class Board(Drawable):
 
             if (pawn.i, pawn.j) in pawn.goals:
                 self.finished = True
+                self.draw_player_info(self.player)
                 return
 
             self.next_player()
@@ -799,17 +801,29 @@ class Board(Drawable):
             pygame.draw.rect(screen, self.color, r, 0)
 
         pawn.draw(r)
+
         r.x += r.width + 20
         r.width = 6
         pygame.draw.rect(screen, WALL_COLOR, r, 0)
-        Font = pygame.font.SysFont(None, FONT_SIZE)
-        fnt = Font.render(str(pawn.walls), True, FONT_COLOR)
+
         r.x += r.width * 2 + 10
         r.y += r.height / 2 - 5
         r.height = FONT_SIZE
         r.width *= 3
-        pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)
-        self.screen.blit(fnt, r)
+        pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)  # Erases previous number
+        self.msg(r.x, r.y, str(pawn.walls))
+
+        if self.finished:
+            self.msg(r.x + PAWN_PADDING, r.y, "PLAYER %i WINS!" % (1 + self.player))
+            x = self.rect.x
+            y = self.rect.y + self.rect.height + PAWN_PADDING
+            self.msg(x, y, "Press any key to EXIT")
+
+
+    def msg(self, x, y, str, color = FONT_COLOR, fsize = FONT_SIZE):
+        Font = pygame.font.SysFont(None, fsize)
+        fnt = Font.render(str, True, color)
+        self.screen.blit(fnt, (x, y))
 
 
     def draw_players_info(self):
@@ -817,7 +831,6 @@ class Board(Drawable):
         '''
         for i in range(len(self.pawns)):
             self.draw_player_info(i)
-
 
 
 
