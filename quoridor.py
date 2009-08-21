@@ -26,6 +26,11 @@ DEF_COLS = 9
 NUM_WALLS = 10
 
 ### COLORS ###
+# Font Color & SIZE
+FONT_COLOR = Color(0, 10, 50)
+FONT_BG_COLOR = Color(255, 255, 255)
+FONT_SIZE = 16
+
 # Board Background and Border color and look
 BOARD_BG_COLOR = Color(240, 255, 255)
 BOARD_BRD_COLOR = Color(0, 0, 40)
@@ -43,6 +48,9 @@ WALL_COLOR = Color(10, 10, 10)
 PAWN_A_COL = Color(158, 60, 60) # Red
 PAWN_B_COL = Color(60, 60, 158) # Blue
 PAWN_BORDER_COL = Color(188, 188, 80) # Yellow
+
+# Other constants
+PAWN_PADDING = 25 # Pixels right to the board
 
 # Avaiable directions
 dirs = ['N', 'S', 'E', 'W']
@@ -141,11 +149,13 @@ class Pawn(Drawable):
             self.goals = [(x, self.board.cols - 1) for x in range(self.board.rows)]
 
 
-    def draw(self):
+    def draw(self, r = None):
         if self.i is None or self.j is None:
             return
 
-        r = self.rect
+        if r is None:
+            r = self.rect
+
         pygame.draw.ellipse(self.board.screen, self.color, r, 0)
         pygame.draw.ellipse(self.board.screen, self.border_color, r, 2)
 
@@ -182,10 +192,9 @@ class Pawn(Drawable):
 
         # Ok there's a pawn at I, J. Check for adjacent
         result = []
-        back = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
 
         for di in dirs: # Check for any direction
-            if di == back[d]:
+            if di == opposite_dirs[d]:
                 continue
 
             if self.board[I][J].path[di]:
@@ -264,7 +273,6 @@ class Pawn(Drawable):
             if result:
                 return True
 
-        board[self.i][self.j] = False
         return False
 
 
@@ -481,6 +489,7 @@ class Board(Drawable):
         self.cols = cols
         self.cell_pad = cell_padding
         self.mouse_wall = None # Wall painted on mouse move
+        self.finished = False
 
         self.board = []
         for i in range(rows):
@@ -506,6 +515,7 @@ class Board(Drawable):
         self.player = 0 # Current player 0 or 1
         self.num_players = DEFAULT_NUM_PLAYERS
         self.walls = [] # Walls placed on board
+        self.draw_players_info()
 
 
     def regenerate_board(self, c_color, cb_color, c_width = CELL_WIDTH,
@@ -620,7 +630,13 @@ class Board(Drawable):
             pawn.cell = cell
             cell.set_focus(False)
             self.draw()
+
+            if (pawn.i, pawn.j) in pawn.goals:
+                self.finished = True
+                return
+
             self.next_player()
+            self.draw_players_info()
             return
 
         wall = self.wall(x, y)
@@ -631,6 +647,7 @@ class Board(Drawable):
             self.putWall(wall)
             self.current_player.walls -= 1
             self.next_player()
+            self.draw_players_info()
 
 
     def onMouseMotion(self, x, y):
@@ -768,6 +785,41 @@ class Board(Drawable):
         return self.pawns[self.player]
 
 
+    def draw_player_info(self, player_num):
+        ''' Draws player pawn at board + padding_offset
+        '''
+        pawn = self.pawns[player_num]
+        r = pawn.rect
+        r.x = self.rect.x + self.rect.width + PAWN_PADDING
+        r.y = (player_num + 1) * (r.height + PAWN_PADDING)
+        if self.current_player is pawn:
+            pygame.draw.rect(screen, CELL_VALID_COLOR, r, 0)
+            pygame.draw.rect(screen, pawn.border_color, r, 2)
+        else:
+            pygame.draw.rect(screen, self.color, r, 0)
+
+        pawn.draw(r)
+        r.x += r.width + 20
+        r.width = 6
+        pygame.draw.rect(screen, WALL_COLOR, r, 0)
+        Font = pygame.font.SysFont(None, FONT_SIZE)
+        fnt = Font.render(str(pawn.walls), True, FONT_COLOR)
+        r.x += r.width * 2 + 10
+        r.y += r.height / 2 - 5
+        r.height = FONT_SIZE
+        r.width *= 3
+        pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)
+        self.screen.blit(fnt, r)
+
+
+    def draw_players_info(self):
+        ''' Calls the above funcion for every player.
+        '''
+        for i in range(len(self.pawns)):
+            self.draw_player_info(i)
+
+
+
 
 def input(events):
     for event in events:
@@ -775,8 +827,11 @@ def input(events):
             sys.exit(0)
 
         if hasattr(event, 'key'):
-            if event.key == K_ESCAPE:
+            if event.key == K_ESCAPE or board.finished:
                 sys.exit(0)
+
+        if board.finished:
+            continue
 
         if event.type == MOUSEBUTTONDOWN:
             x, y = pygame.mouse.get_pos()
