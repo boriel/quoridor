@@ -837,11 +837,11 @@ class Board(Drawable):
 def input(events):
     for event in events:
         if event.type == QUIT:
-            sys.exit(0)
+            return False
 
         if hasattr(event, 'key'):
             if event.key == K_ESCAPE or board.finished:
-                sys.exit(0)
+                return False
 
         if board.finished:
             continue
@@ -854,17 +854,26 @@ def input(events):
             x, y = pygame.mouse.get_pos()
             board.onMouseMotion(x, y)
 
+    return True
 
-pygame.init()
-window = pygame.display.set_mode((800, 600))
-pygame.display.set_caption(GAME_TITLE)
-screen = pygame.display.get_surface()
 
-screen.fill(Color(255,255,255))
-board = Board(screen)
-board.draw()
+if __name__ == '__main__':
+    pygame.init()
+    window = pygame.display.set_mode((800, 600))
+    pygame.display.set_caption(GAME_TITLE)
+    screen = pygame.display.get_surface()
 
-while True:
-    pygame.display.flip()
-    input(pygame.event.get())
+    screen.fill(Color(255,255,255))
+    board = Board(screen)
+    board.draw()
 
+    cframe = 0
+    cont = True
+    while cont:
+        if not cframe:
+            pygame.display.flip()
+
+        cframe = (cframe + 1) % 25
+        cont = input(pygame.event.get())
+
+    pygame.quit()
