@@ -65,6 +65,10 @@ opposite_dirs = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
 # Global function cache for distances
 MEMOIZE_DISTANCES = {}
 
+# This global counter counts the total number of players
+# PAWNS instances uses it
+PAWNS = 0
+
 
 def manhattan((a, b), (c, d)):
     ''' Manhattan distance
@@ -115,6 +119,8 @@ class Pawn(Drawable):
             height = CELL_HEIGHT - CELL_PAD,
             AI = False  # Se to True so the computer moves this pawn
             ):
+        global PAWNS
+
         self.color = color
         self.border_color = border_color
         self.width = width
@@ -125,8 +131,13 @@ class Pawn(Drawable):
         self.walls = walls # Walls per player
         self.__cell = None
         self.set_goal()
+        self.id = PAWNS
         self.distances = DistArray(self)
         self.AI = AI
+
+
+        PAWNS += 1
+
 
 
     def __set_cell(self, cell):
@@ -1010,8 +1021,7 @@ class DistArray(CellArray):
     '''
     def __init__(self, pawn):
         self.pawn = pawn
-        self.board = pawn.board
-        CellArray.__init__(self, self.board, 99)
+        CellArray.__init__(self, pawn.board, 99)
 
         self.locks = CellArray(self.board, False)
         self.queue = []
@@ -1024,6 +1034,7 @@ class DistArray(CellArray):
         position to the goal.
         '''
         k = self.board.status
+        k = str(self.pawn.id) + k[1:]
         try:
             self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
             #return
@@ -1040,7 +1051,6 @@ class DistArray(CellArray):
 
         self.update_distances()
         MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
-
 
 
     def lock(self, i, j):
