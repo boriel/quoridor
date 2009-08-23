@@ -309,6 +309,13 @@ class Pawn(Drawable):
         return False
 
 
+    @property
+    def status(self):
+        ''' Returns a string containing 'IJ' coordinates.
+        '''
+        return str(self.i) + str(self.j)
+
+
 
 class Wall(Drawable):
     ''' Class for painting a Wall
@@ -401,7 +408,9 @@ class Wall(Drawable):
 
     @property
     def status(self):
-        return (self.col, self.row, self.horiz)
+        ''' Returns a string containing IJH
+        '''
+        return str(self.col) + str(self.row) + str(int(self.horiz))
 
 
 class Cell(Drawable):
@@ -441,6 +450,7 @@ class Cell(Drawable):
         self.i = i
         self.j = j
         self.has_focus = False # True if mouse on cell
+        self.status = '00' # S and E walls
 
         # Available paths
         self.path = {}
@@ -453,8 +463,10 @@ class Cell(Drawable):
             self.path['E'] = False
         elif i == self.board.rows - 1:
             self.path['S'] = False
+            self.status == '10'
         elif j == self.board.cols - 1:
             self.path['W'] = False
+            self.status == '01'
 
 
     def set_path(self, direction, value):
@@ -468,10 +480,17 @@ class Cell(Drawable):
         i = self.i + i1
         j = self.j + j1
 
+        s = str(int(value)) # '0' or '1'
+        if d == 'S':
+            self.status = s + self.status[-1]
+        elif d == 'W':
+            self.status = self.status[0] + s
+
         if not self.board.in_range(i, j):
             return # Nothing to do
 
         self.board[i][j].path[opposite_dirs[d]] = value
+
 
 
     def draw(self):
@@ -531,7 +550,6 @@ class Board(Drawable):
         self.cols = cols
         self.cell_pad = cell_padding
         self.mouse_wall = None # Wall painted on mouse move
-        self.finished = False
         self.player = 0 # Current player 0 or 1
         self.board = []
 
@@ -680,8 +698,7 @@ class Board(Drawable):
             cell.set_focus(False)
             self.draw()
 
-            if (pawn.i, pawn.j) in pawn.goals:
-                self.finished = True
+            if self.finished:
                 self.draw_player_info(self.player)
                 return
 
@@ -876,7 +893,7 @@ class Board(Drawable):
         pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)  # Erases previous number
         self.msg(r.x, r.y, str(pawn.walls))
 
-        if self.finished:
+        if self.finished and self.current_player == pawn:
             self.msg(r.x + PAWN_PADDING, r.y, "PLAYER %i WINS!" % (1 + self.player))
             x = self.rect.x
             y = self.rect.y + self.rect.height + PAWN_PADDING
@@ -897,28 +914,53 @@ class Board(Drawable):
 
 
     def computer_move(self):
-        while self.current_player.AI:
-            move, x = self.AI.think()
-            print move, x
-            self.current_player.move_to(*move)
-            self.next_player()
+        while self.current_player.AI and not self.finished:
             self.draw()
             self.draw_players_info()
             pygame.display.flip()
+            action, x = self.AI.move()
+            print action, x
+            if isinstance(action, Wall):
+                self.putWall(action)
+                self.current_player.walls -= 1
+            else:
+                self.current_player.move_to(*action)
+
+            if self.finished:
+                break
+
+            self.next_player()
+
+        self.draw()
+        self.draw_players_info()
+        pygame.display.flip()
+
+
+    @property
+    def finished(self):
+        ''' Returns whether the match has finished
+        or not.
+        '''
+        for pawn in self.pawns:
+            if (pawn.i, pawn.j) in pawn.goals:
+                return True
+
+        return False
 
 
     @property
     def status(self):
         ''' Status serialization in a t-uple'''
-        result = [self.player]
-        result += [(p.i, p.j) for p in self.pawns]
+        result = str(self.player)
+
+        for p in self.pawns:
+            result += p.status
 
         for i in range(self.rows):
             for j in range(self.cols):
-                c = self.board[i][j]
-                result += [c.path['S'], c.path['E']]
+                result += self.board[i][j].status
 
-        return tuple(result)
+        return result
 
 
 def input(events):
@@ -968,9 +1010,8 @@ class DistArray(CellArray):
     '''
     def __init__(self, pawn):
         self.pawn = pawn
-        self.i = pawn.i
-        self.j = pawn.j
-        CellArray.__init__(self, pawn.board, 99)
+        self.board = pawn.board
+        CellArray.__init__(self, self.board, 99)
 
         self.locks = CellArray(self.board, False)
         self.queue = []
@@ -979,13 +1020,14 @@ class DistArray(CellArray):
 
 
     def update(self):
-        ''' Computes minutmun distances from the current
+        ''' Computes minimun distances from the current
         position to the goal.
         '''
         k = self.board.status
         try:
             self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
-        except:
+            #return
+        except KeyError:
             pass
 
         for i in range(self.rows):
@@ -1074,7 +1116,7 @@ class AI(object):
         It could be use to implent an Strategy pattern
     '''
     def __init__(self, pawn, level = 1):
-        self.level = level * 2 # Level of difficulty
+        self.level = level * 0 # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
 
@@ -1091,40 +1133,55 @@ class AI(object):
         for i in range(self.board.rows - 1):
             for j in range(self.board.cols - 1):
                 for horiz in (False, True):
-                    wall = Wall(self, None, color, i, j, horiz)
+                    wall = Wall(self.board, self.board.screen, color, i, j, horiz)
                     if self.board.can_put_wall(wall):
                         result += [wall]
 
         return result
 
 
-    def think(self, ilevel = 0):
+    def move(self):
+        ''' Return best move according to the deep level
+        '''
+        actions = self.pawn.valid_moves
+        for move in actions:
+            if move in self.pawn.goals:
+                return (move, -99)
+
+        move, h, alpha, beta = self.think(False)
+        return move, h
+
+
+    def think(self, MAX, ilevel = 0, alpha = 99, beta = -99):
         ''' Returns best movement with the given level of
         analysis, and returns it as a Wall (if a wall
-        must be put) or as a coordinate pair
+        must be put) or as a coordinate pair.
+
+        MAX is a boolean with tells if this function is
+        looking for a MAX (True) value or a MIN (False) value.
         '''
         k = self.board.status
         try:
-            return self.__memoize_think[k]
-        except:
+            r = self.__memoize_think[k]
+            print k
+            return r
+        except KeyError:
             pass
 
         result = None
 
+        print alpha, beta
+        stop = False
+
         if ilevel >= self.level: # OK we must return the movement
-            minimum = 99 # Inf
+            HH = -99 if MAX else 99
 
             for action in self.available_actions:
                 if isinstance(action, Wall):
-                    continue
+                    #continue
                     self.board.putWall(action)
+                    self.pawn.walls -= 1
                 else:
-                    print action, ilevel
-                    if action in self.pawn.goals:
-                        minimum = 0
-                        result = action
-                        break # We reached the goal, end
-
                     i = self.pawn.i
                     j = self.pawn.j
                     self.pawn.move_to(*action)
@@ -1132,29 +1189,39 @@ class AI(object):
                 self.board.update_pawns_distances()
                 h = self.distances.shortest_path
 
-                print '++', h
-
                 for pawn in self.board.pawns:
-                    if pawn is self.pawn:
-                        continue
-                    h -= pawn.distances.shortest_path
+                    if pawn is not self.pawn:
+                        h -= pawn.distances.shortest_path
 
-                print '+++', h
+                if MAX:
+                    if h > HH:
+                        HH = h
+                        result = action
 
-                if h < minimum:
-                    minimum = h
-                    result = action
-                    #self.board.draw()
+                        if HH >= alpha:
+                            HH = alpha
+                            stop = True
+                else:
+                    if h < HH:
+                        HH = h
+                        result = action
+
+                        if HH <= beta:
+                            HH = beta
+                            stop = True
 
                  #  Undo action
                 if isinstance(action, Wall):
                     self.board.removeWall(action)
+                    self.pawn.walls += 1
                 else:
                     self.pawn.move_to(i, j)
 
-            self.__memoize_think[k] = (result, minimum)
-            print '---------->', result, minimum
-            return (result, minimum)
+                if stop:
+                    break
+
+            self.__memoize_think[k] = (result, HH, alpha, beta)
+            return (result, HH, alpha, beta)
 
         # Not a leaf in the search tree. Alpha-Beta minimax
         HH = -99 if ilevel % 2 else 99
@@ -1164,8 +1231,9 @@ class AI(object):
 
         for action in r: #self.available_actions:
             if isinstance(action, Wall):
-                continue
+                #continue
                 self.board.putWall(action)
+                self.pawn.walls -= 1
             else:
                 print action, ilevel
                 i = self.pawn.i
@@ -1173,26 +1241,40 @@ class AI(object):
                 self.pawn.move_to(*action)
 
             self.board.next_player()
-            rh, rhmin = self.think(ilevel + 1)
-            print rh, rhmin, '<<<'
+            dummy, h, alpha1, beta1 = self.think(ilevel + 1, not MAX, alpha, beta)
+            print dummy, h, '<<<'
             self.previous_player()
 
-            if ilevel % 2:
-                if rhmin > HH: # MAX
-                    result, HH = rh, rhmin
+            if MAX:
+                if h > HH: # MAX
+                    result, HH = action, h
+                    if HH >= alpha:
+                        HH = alpha
+                        stop = True
+                    else:
+                        beta = HH
             else:
-                if rhmin < HH: # MIN
-                    result, HH = rh, rhmin
+                if h < HH: # MIN
+                    result, HH = action, h
+                    if HH <= beta:
+                        HH = beta
+                        stop = True
+                    else:
+                        alpha = HH
 
             #  Undo action
             if isinstance(action, Wall):
                 self.board.removeWall(action)
+                self.pawn.walls += 1
             else:
                 self.pawn.move_to(i, j)
 
+            if stop:
+                break
+
         self.board.current_player.distances.pop_state()
-        self.__memoize_think[k] = (result, HH)
-        return (result, HH)
+        self.__memoize_think[k] = (result, HH, alpha, beta)
+        return (result, HH, alpha, beta)
 
 
     @property
