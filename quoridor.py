@@ -827,8 +827,7 @@ class Board(Drawable):
 
     def update_pawns_distances(self):
         for pawn in self.pawns:
-            if pawn.AI:
-                pawn.distances.update()
+            pawn.distances.update()
 
 
     def which_cell(self, x, y):
@@ -983,6 +982,12 @@ class DistArray(CellArray):
         ''' Computes minutmun distances from the current
         position to the goal.
         '''
+        k = self.board.status
+        try:
+            self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
+        except:
+            pass
+
         for i in range(self.rows):
             for j in range(self.cols):
                 self.array[i][j] = 99
@@ -992,6 +997,8 @@ class DistArray(CellArray):
             self.lock(i, j)
 
         self.update_distances()
+        MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
+
 
 
     def lock(self, i, j):
@@ -1020,14 +1027,6 @@ class DistArray(CellArray):
 
 
     def update_distances(self):
-        k = self.board.status
-        try:
-            self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
-        except:
-            pass
-
-        #i = self.pawn.i
-        #j = self.pawn.j
         cell = self.pawn.cell
         self.pawn.cell = None
 
@@ -1039,7 +1038,6 @@ class DistArray(CellArray):
                 self.update_cell(row, col)
 
         self.pawn.cell = cell
-        MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
 
 
     def draw(self):
@@ -1076,7 +1074,7 @@ class AI(object):
         It could be use to implent an Strategy pattern
     '''
     def __init__(self, pawn, level = 1):
-        self.level = level * 0 # Level of difficulty
+        self.level = level * 2 # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
 
@@ -1134,17 +1132,19 @@ class AI(object):
                 self.board.update_pawns_distances()
                 h = self.distances.shortest_path
 
+                print '++', h
+
                 for pawn in self.board.pawns:
                     if pawn is self.pawn:
                         continue
-                    md = pawn.distances.shortest_path
-                    print md
-                    h -= md
+                    h -= pawn.distances.shortest_path
+
+                print '+++', h
 
                 if h < minimum:
                     minimum = h
                     result = action
-                    self.board.draw()
+                    #self.board.draw()
 
                  #  Undo action
                 if isinstance(action, Wall):
@@ -1153,10 +1153,11 @@ class AI(object):
                     self.pawn.move_to(i, j)
 
             self.__memoize_think[k] = (result, minimum)
+            print '---------->', result, minimum
             return (result, minimum)
 
         # Not a leaf in the search tree. Alpha-Beta minimax
-        minimum = -99 if ilevel % 2 else 99
+        HH = -99 if ilevel % 2 else 99
         player = self.board.current_player
         player.distances.push_state()
         r = self.available_actions
@@ -1173,14 +1174,15 @@ class AI(object):
 
             self.board.next_player()
             rh, rhmin = self.think(ilevel + 1)
+            print rh, rhmin, '<<<'
             self.previous_player()
 
             if ilevel % 2:
-                if rh > minimum: # MAX
-                    result, minimum = rh, rhmin
+                if rhmin > HH: # MAX
+                    result, HH = rh, rhmin
             else:
-                if rh < minimum: # MIN
-                    result, minimum = rh, rhmin
+                if rhmin < HH: # MIN
+                    result, HH = rh, rhmin
 
             #  Undo action
             if isinstance(action, Wall):
@@ -1189,8 +1191,8 @@ class AI(object):
                 self.pawn.move_to(i, j)
 
         self.board.current_player.distances.pop_state()
-        self.__memoize_think[k] = (result, minimum)
-        return (result, minimum)
+        self.__memoize_think[k] = (result, HH)
+        return (result, HH)
 
 
     @property
@@ -1208,7 +1210,6 @@ class AI(object):
         '''
         self.board.player = (self.board.player + self.board.num_players - 1) %\
             self.board.num_players
-
 
 
 if __name__ == '__main__':
