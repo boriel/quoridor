@@ -7,6 +7,7 @@ import pygame
 from pygame.locals import *
 from pygame import Color
 from pygame import Rect
+import copy
 
 
 # Debug FLAG
@@ -60,6 +61,9 @@ PAWN_PADDING = 25 # Pixels right to the board
 dirs = ['N', 'S', 'E', 'W']
 dirs_delta = {'N': (-1, 0), 'S': (+1, 0), 'E': (0, -1), 'W': (0, +1)}
 opposite_dirs = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
+
+# Global function cache for distances
+MEMOIZE_DISTANCES = {}
 
 
 def manhattan((a, b), (c, d)):
@@ -130,7 +134,9 @@ class Pawn(Drawable):
             self.__cell.pawn = None
 
         self.__cell = cell
-        self.__cell.pawn = self
+
+        if cell is not None:
+            self.__cell.pawn = self
 
 
     def __get_cell(self):
@@ -272,6 +278,7 @@ class Pawn(Drawable):
         if self.board.in_range(i, j):
             self.i = i
             self.j = j
+            self.cell = self.board[i][j]
 
 
     def can_reach_goal(self, board = None):
@@ -525,9 +532,9 @@ class Board(Drawable):
         self.cell_pad = cell_padding
         self.mouse_wall = None # Wall painted on mouse move
         self.finished = False
-        self.__memoize_can_put_wall = {}
-
+        self.player = 0 # Current player 0 or 1
         self.board = []
+
         for i in range(rows):
             self.board += [[]]
             for j in range(cols):
@@ -549,7 +556,6 @@ class Board(Drawable):
                             )]
 
         self.regenerate_board(CELL_COLOR, CELL_BORDER_COLOR)
-        self.player = 0 # Current player 0 or 1
         self.num_players = DEFAULT_NUM_PLAYERS
         self.walls = [] # Walls placed on board
         self.draw_players_info()
@@ -671,7 +677,6 @@ class Board(Drawable):
                 return
 
             pawn.move_to(cell.i, cell.j)
-            pawn.cell = cell
             cell.set_focus(False)
             self.draw()
 
@@ -737,20 +742,12 @@ class Board(Drawable):
         ''' Returns whether the given wall can be put
         on the board.
         '''
-        k = self.status + (wall.status, )
-        try:
-            return self.__memoize_can_put_wall[k]
-        except:
-            pass
-
         if not self.current_player.walls:
-            self.__memoize_can_put_wall[k] = False
             return False
 
         # Check if any wall has already got that place...
         for w in self.walls:
             if wall.collides(w):
-                self.__memoize_can_put_wall[k] = False
                 return False
 
         result = True
@@ -762,7 +759,6 @@ class Board(Drawable):
                 break
 
         self.removeWall(wall)
-        self.__memoize_can_put_wall[k] = result
         return result
 
 
@@ -902,14 +898,20 @@ class Board(Drawable):
 
 
     def computer_move(self):
-        x = self.AI.think()
-        print x
+        while self.current_player.AI:
+            move, x = self.AI.think()
+            print move, x
+            self.current_player.move_to(*move)
+            self.next_player()
+            self.draw()
+            self.draw_players_info()
+            pygame.display.flip()
 
 
     @property
     def status(self):
         ''' Status serialization in a t-uple'''
-        result = [len(self.pawns)]
+        result = [self.player]
         result += [(p.i, p.j) for p in self.pawns]
 
         for i in range(self.rows):
@@ -1018,12 +1020,26 @@ class DistArray(CellArray):
 
 
     def update_distances(self):
+        k = self.board.status
+        try:
+            self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
+        except:
+            pass
+
+        #i = self.pawn.i
+        #j = self.pawn.j
+        cell = self.pawn.cell
+        self.pawn.cell = None
+
         while len(self.queue):
             i, j = self.queue.pop()
             self.locks[i][j] = 0
 
             for row, col in self.pawn.valid_moves_from(i, j):
                 self.update_cell(row, col)
+
+        self.pawn.cell = cell
+        MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
 
 
     def draw(self):
@@ -1060,16 +1076,14 @@ class AI(object):
         It could be use to implent an Strategy pattern
     '''
     def __init__(self, pawn, level = 1):
-        self.level = level * 2 # Level of difficulty
+        self.level = level * 0 # Level of difficulty
         self.board = pawn.board
-        self.distances = self.pawn.distances
+        self.__memoize_think = {}
 
     @property
     def available_actions(self):
         player = self.pawn
         result = [x for x in player.valid_moves]
-
-        return result
 
         if not player.walls: # Out of walls?
             return result
@@ -1091,10 +1105,14 @@ class AI(object):
         analysis, and returns it as a Wall (if a wall
         must be put) or as a coordinate pair
         '''
+        k = self.board.status
+        try:
+            return self.__memoize_think[k]
+        except:
+            pass
+
         result = None
 
-        print self.available_actions
-        print self.board.current_player.valid_moves, '<<'
         if ilevel >= self.level: # OK we must return the movement
             minimum = 99 # Inf
 
@@ -1107,7 +1125,7 @@ class AI(object):
                     if action in self.pawn.goals:
                         minimum = 0
                         result = action
-                        break
+                        break # We reached the goal, end
 
                     i = self.pawn.i
                     j = self.pawn.j
@@ -1119,28 +1137,31 @@ class AI(object):
                 for pawn in self.board.pawns:
                     if pawn is self.pawn:
                         continue
-                    h -= pawn.distances.shortest_path
+                    md = pawn.distances.shortest_path
+                    print md
+                    h -= md
 
                 if h < minimum:
-                    h = minimum
+                    minimum = h
                     result = action
+                    self.board.draw()
 
-                #  Undo action
+                 #  Undo action
                 if isinstance(action, Wall):
                     self.board.removeWall(action)
                 else:
                     self.pawn.move_to(i, j)
 
+            self.__memoize_think[k] = (result, minimum)
             return (result, minimum)
 
         # Not a leaf in the search tree. Alpha-Beta minimax
         minimum = -99 if ilevel % 2 else 99
         player = self.board.current_player
         player.distances.push_state()
-
         r = self.available_actions
+
         for action in r: #self.available_actions:
-            #if ilevel < 2: print action, ilevel
             if isinstance(action, Wall):
                 continue
                 self.board.putWall(action)
@@ -1150,7 +1171,6 @@ class AI(object):
                 j = self.pawn.j
                 self.pawn.move_to(*action)
 
-            #self.board.update_pawns_distances()
             self.board.next_player()
             rh, rhmin = self.think(ilevel + 1)
             self.previous_player()
@@ -1169,12 +1189,18 @@ class AI(object):
                 self.pawn.move_to(i, j)
 
         self.board.current_player.distances.pop_state()
+        self.__memoize_think[k] = (result, minimum)
         return (result, minimum)
 
 
     @property
     def pawn(self):
         return self.board.current_player
+
+
+    @property
+    def distances(self):
+        return self.pawn.distances
 
 
     def previous_player(self):
