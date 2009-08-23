@@ -9,6 +9,11 @@ from pygame import Color
 from pygame import Rect
 import copy
 
+try:
+    import psyco
+except ImportError:
+    pass
+
 
 # Debug FLAG
 __DEBUG__ = True
@@ -1126,7 +1131,7 @@ class AI(object):
         It could be use to implent an Strategy pattern
     '''
     def __init__(self, pawn, level = 1):
-        self.level = level * 0 # Level of difficulty
+        self.level = level * 1 # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
 
@@ -1188,7 +1193,6 @@ class AI(object):
 
             for action in self.available_actions:
                 if isinstance(action, Wall):
-                    #continue
                     self.board.putWall(action)
                     self.pawn.walls -= 1
                 else:
@@ -1204,6 +1208,7 @@ class AI(object):
                         h -= pawn.distances.shortest_path
 
                 if MAX:
+                    h = -h
                     if h > HH:
                         HH = h
                         result = action
@@ -1216,9 +1221,9 @@ class AI(object):
                         HH = h
                         result = action
 
-                        if HH <= beta:
-                            HH = beta
-                            stop = True
+                        #if HH <= beta:
+                        #    HH = beta
+                        #    stop = True
 
                  #  Undo action
                 if isinstance(action, Wall):
@@ -1241,7 +1246,6 @@ class AI(object):
 
         for action in r: #self.available_actions:
             if isinstance(action, Wall):
-                #continue
                 self.board.putWall(action)
                 self.pawn.walls -= 1
             else:
@@ -1251,7 +1255,7 @@ class AI(object):
                 self.pawn.move_to(*action)
 
             self.board.next_player()
-            dummy, h, alpha1, beta1 = self.think(ilevel + 1, not MAX, alpha, beta)
+            dummy, h, alpha1, beta1 = self.think(not MAX, ilevel + 1, alpha, beta)
             print dummy, h, '<<<'
             self.previous_player()
 
@@ -1282,7 +1286,7 @@ class AI(object):
             if stop:
                 break
 
-        self.board.current_player.distances.pop_state()
+        player.distances.pop_state()
         self.__memoize_think[k] = (result, HH, alpha, beta)
         return (result, HH, alpha, beta)
 
