@@ -8,6 +8,9 @@ from pygame.locals import *
 from pygame import Color
 from pygame import Rect
 import copy
+import re
+import threading
+
 
 try:
     import psyco
@@ -67,12 +70,16 @@ dirs = ['N', 'S', 'E', 'W']
 dirs_delta = {'N': (-1, 0), 'S': (+1, 0), 'E': (0, -1), 'W': (0, +1)}
 opposite_dirs = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
 
-# Global function cache for distances
-MEMOIZE_DISTANCES = {}
-
 # This global counter counts the total number of players
 # PAWNS instances uses it
 PAWNS = 0
+
+# Memoized put-wall cache
+MEMOIZED_WALLS = {}
+
+# --- Statistics ---
+MEMOIZED_NODES = 0 # Memoized AI Nodes
+MEMOIZED_NODES_HITS = 0 # Memoized Cache hits
 
 
 def manhattan((a, b), (c, d)):
@@ -329,7 +336,7 @@ class Pawn(Drawable):
     def status(self):
         ''' Returns a string containing 'IJ' coordinates.
         '''
-        return str(self.i) + str(self.j)
+        return str(self.i) + str(self.j) + '%02i' % self.walls
 
 
 
@@ -972,8 +979,8 @@ class Board(Drawable):
         for p in self.pawns:
             result += p.status
 
-        for i in range(self.rows):
-            for j in range(self.cols):
+        for i in range(self.rows - 1):
+            for j in range(self.cols - 1):
                 result += self.board[i][j].status
 
         return result
@@ -1030,8 +1037,11 @@ class DistArray(CellArray):
 
         self.locks = CellArray(self.board, False)
         self.queue = []
-        self.update()
+        self.MEMOIZE_DISTANCES = {}
+        self.MEMO_HITS = 0
+        self.MEMO_COUNT = 0
         self.stack = []
+        self.update()
 
 
     def update(self):
@@ -1039,11 +1049,12 @@ class DistArray(CellArray):
         position to the goal.
         '''
         k = self.board.status
-        k = str(self.pawn.id) + k[1:]
         try:
-            self.array = copy.deepcopy(MEMOIZE_DISTANCES[k])
-            #return
+            self.array = copy.deepcopy(self.MEMOIZE_DISTANCES[k])
+            self.MEMO_HITS += 1
+            return
         except KeyError:
+            self.MEMO_COUNT += 1
             pass
 
         for i in range(self.rows):
@@ -1055,7 +1066,7 @@ class DistArray(CellArray):
             self.lock(i, j)
 
         self.update_distances()
-        MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
+        self.MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
 
 
     def lock(self, i, j):
@@ -1143,16 +1154,38 @@ class AI(object):
         if not player.walls: # Out of walls?
             return result
 
+        try:
+            k = self.board.status[1 + 4 * len(self.board.pawns):]
+            return result + MEMOIZED_WALLS[k]
+        except KeyError:
+            pass
+
         color = self.board[0][0].wall_color
+        tmp = []
 
         for i in range(self.board.rows - 1):
             for j in range(self.board.cols - 1):
                 for horiz in (False, True):
                     wall = Wall(self.board, self.board.screen, color, i, j, horiz)
                     if self.board.can_put_wall(wall):
-                        result += [wall]
+                        tmp += [wall]
 
-        return result
+        MEMOIZED_WALLS[k] = tmp
+        return result + tmp
+
+
+    def clean_memo(self):
+        ''' Removes useless status from the memoized cache.
+        '''
+        k = self.board.status[1 + len(self.board.pawns) * 4:]
+        k = '.' * (len(self.board.pawns) * 4) + k.replace('1', '.') + '$'
+        r = re.compile(k)
+
+        for q in self.__memoize_think.keys():
+            if not r.match(q):
+                print q
+                print k
+                del self.__memoize_think[q]
 
 
     def move(self):
@@ -1164,6 +1197,7 @@ class AI(object):
                 return (move, -99)
 
         move, h, alpha, beta = self.think(False)
+        self.clean_memo()
         return move, h
 
 
@@ -1175,21 +1209,37 @@ class AI(object):
         MAX is a boolean with tells if this function is
         looking for a MAX (True) value or a MIN (False) value.
         '''
-        k = self.board.status
+        global MEMOIZED_NODES, MEMOIZED_NODES_HITS
+
+        '''
+        k = self.board.status[1:]
         try:
             r = self.__memoize_think[k]
             print k
+            MEMOIZED_NODES_HITS += 1
             return r
         except KeyError:
+            MEMOIZED_NODES += 1
             pass
+        '''
 
         result = None
-
         print alpha, beta
         stop = False
 
         if ilevel >= self.level: # OK we must return the movement
             HH = -99 if MAX else 99
+            #HH = 99
+
+            k = self.board.status[1:]
+            try:
+                r = self.__memoize_think[k]
+                print k
+                MEMOIZED_NODES_HITS += 1
+                return r
+            except KeyError:
+                MEMOIZED_NODES += 1
+                pass
 
             for action in self.available_actions:
                 if isinstance(action, Wall):
@@ -1202,9 +1252,10 @@ class AI(object):
 
                 self.board.update_pawns_distances()
                 h = self.distances.shortest_path
+                p = self.pawn
 
                 for pawn in self.board.pawns:
-                    if pawn is not self.pawn:
+                    if pawn is not p:
                         h -= pawn.distances.shortest_path
 
                 if MAX:
@@ -1221,11 +1272,11 @@ class AI(object):
                         HH = h
                         result = action
 
-                        #if HH <= beta:
-                        #    HH = beta
-                        #    stop = True
+                        if HH <= beta:
+                            HH = beta
+                            stop = True
 
-                 #  Undo action
+                #  Undo action
                 if isinstance(action, Wall):
                     self.board.removeWall(action)
                     self.pawn.walls += 1
@@ -1287,7 +1338,7 @@ class AI(object):
                 break
 
         player.distances.pop_state()
-        self.__memoize_think[k] = (result, HH, alpha, beta)
+        #self.__memoize_think[k] = (result, HH, alpha, beta)
         return (result, HH, alpha, beta)
 
 
@@ -1330,3 +1381,10 @@ if __name__ == '__main__':
     except:
         pygame.quit()
         raise
+
+    print 'Memoized nodes:', MEMOIZED_NODES
+    print 'Memoized nodes hits:', MEMOIZED_NODES_HITS
+
+    for pawn in board.pawns:
+        print 'Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT)
+        print 'Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS)
