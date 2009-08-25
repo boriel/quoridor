@@ -21,6 +21,9 @@ except ImportError:
 # Debug FLAG
 __DEBUG__ = True
 
+# Frame rate
+FRAMERATE = 25
+
 # Config Options
 GAME_TITLE = 'Quoridor'
 DEFAULT_NUM_PLAYERS = 2
@@ -146,10 +149,7 @@ class Pawn(Drawable):
         self.id = PAWNS
         self.distances = DistArray(self)
         self.AI = AI
-
-
         PAWNS += 1
-
 
 
     def __set_cell(self, cell):
@@ -515,7 +515,6 @@ class Cell(Drawable):
         self.board[i][j].path[opposite_dirs[d]] = value
 
 
-
     def draw(self):
         Drawable.draw(self)
 
@@ -575,6 +574,7 @@ class Board(Drawable):
         self.mouse_wall = None # Wall painted on mouse move
         self.player = 0 # Current player 0 or 1
         self.board = []
+        self.computing = False # True if a non-human player is moving
 
         for i in range(rows):
             self.board += [[]]
@@ -729,7 +729,10 @@ class Board(Drawable):
             self.draw_players_info()
 
             if self.current_player.AI:
-                self.computer_move()
+                self.computing = True
+                thread = threading.Thread(target = self.computer_move)
+                thread.start()
+                #self.computer_move()
 
             return
 
@@ -937,26 +940,35 @@ class Board(Drawable):
 
 
     def computer_move(self):
-        while self.current_player.AI and not self.finished:
+        ''' Performs computer moves for every non-human player
+        '''
+        try:
+            while self.current_player.AI and not self.finished:
+                self.draw()
+                self.draw_players_info()
+                #pygame.display.flip()
+                action, x = self.AI.move()
+                print action, x
+                if isinstance(action, Wall):
+                    self.putWall(action)
+                    self.current_player.walls -= 1
+                else:
+                    self.current_player.move_to(*action)
+
+                if self.finished:
+                    break
+
+                self.next_player()
+
             self.draw()
             self.draw_players_info()
-            pygame.display.flip()
-            action, x = self.AI.move()
-            print action, x
-            if isinstance(action, Wall):
-                self.putWall(action)
-                self.current_player.walls -= 1
-            else:
-                self.current_player.move_to(*action)
+            self.computing = False
 
-            if self.finished:
-                break
+        except AttributeError, v:
+            # This exception is only raised (or should be) on users Break
+            pass
 
-            self.next_player()
-
-        self.draw()
-        self.draw_players_info()
-        pygame.display.flip()
+        #pygame.display.flip()
 
 
     @property
@@ -984,29 +996,6 @@ class Board(Drawable):
                 result += self.board[i][j].status
 
         return result
-
-
-def input(events):
-    for event in events:
-        if event.type == QUIT:
-            return False
-
-        if hasattr(event, 'key'):
-            if event.key == K_ESCAPE or board.finished:
-                return False
-
-        if board.finished:
-            continue
-
-        if event.type == MOUSEBUTTONDOWN:
-            x, y = pygame.mouse.get_pos()
-            board.onMouseClick(x, y)
-
-        if event.type == MOUSEMOTION:
-            x, y = pygame.mouse.get_pos()
-            board.onMouseMotion(x, y)
-
-    return True
 
 
 
@@ -1042,6 +1031,18 @@ class DistArray(CellArray):
         self.MEMO_COUNT = 0
         self.stack = []
         self.update()
+
+
+    def clean_memo(self):
+        ''' Frees memory by removing unused states.
+        '''
+        L = len(self.board.pawns) * 4 + 1
+        k = '.' * L + self.board.status[L:]
+        r = re.compile(k.replace('1', '.'))
+
+        for q in self.MEMODISTANCES.keys():
+            if not r.match(q):
+                del self.MEMODISTANCES[q]
 
 
     def update(self):
@@ -1142,7 +1143,7 @@ class AI(object):
         It could be use to implent an Strategy pattern
     '''
     def __init__(self, pawn, level = 1):
-        self.level = level * 1 # Level of difficulty
+        self.level = level # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
 
@@ -1177,8 +1178,9 @@ class AI(object):
     def clean_memo(self):
         ''' Removes useless status from the memoized cache.
         '''
-        k = self.board.status[1 + len(self.board.pawns) * 4:]
-        k = '.' * (len(self.board.pawns) * 4) + k.replace('1', '.') + '$'
+        L = 1 + len(self.board.pawns) * 4
+        k = self.board.status[L:]
+        k = '.' * L + k.replace('1', '.') + '$'
         r = re.compile(k)
 
         for q in self.__memoize_think.keys():
@@ -1211,8 +1213,7 @@ class AI(object):
         '''
         global MEMOIZED_NODES, MEMOIZED_NODES_HITS
 
-        '''
-        k = self.board.status[1:]
+        k = str(ilevel) + self.board.status[1:]
         try:
             r = self.__memoize_think[k]
             print k
@@ -1221,7 +1222,6 @@ class AI(object):
         except KeyError:
             MEMOIZED_NODES += 1
             pass
-        '''
 
         result = None
         print alpha, beta
@@ -1229,17 +1229,6 @@ class AI(object):
 
         if ilevel >= self.level: # OK we must return the movement
             HH = -99 if MAX else 99
-            #HH = 99
-
-            k = self.board.status[1:]
-            try:
-                r = self.__memoize_think[k]
-                print k
-                MEMOIZED_NODES_HITS += 1
-                return r
-            except KeyError:
-                MEMOIZED_NODES += 1
-                pass
 
             for action in self.available_actions:
                 if isinstance(action, Wall):
@@ -1338,7 +1327,7 @@ class AI(object):
                 break
 
         player.distances.pop_state()
-        #self.__memoize_think[k] = (result, HH, alpha, beta)
+        self.__memoize_think[k] = (result, HH, alpha, beta)
         return (result, HH, alpha, beta)
 
 
@@ -1359,9 +1348,36 @@ class AI(object):
             self.board.num_players
 
 
+
+def dispatch(events):
+    for event in events:
+        if event.type == QUIT:
+            return False
+
+        if hasattr(event, 'key'):
+            if event.key == K_ESCAPE:
+                return False
+
+        if board.finished or board.computing:
+            continue
+
+        if event.type == MOUSEBUTTONDOWN:
+            x, y = pygame.mouse.get_pos()
+            board.onMouseClick(x, y)
+
+        if event.type == MOUSEMOTION:
+            x, y = pygame.mouse.get_pos()
+            board.onMouseMotion(x, y)
+
+    return True
+
+
+
+
 if __name__ == '__main__':
     try:
         pygame.init()
+        clock = pygame.time.Clock()
         window = pygame.display.set_mode((800, 600))
         pygame.display.set_caption(GAME_TITLE)
         screen = pygame.display.get_surface()
@@ -1369,17 +1385,17 @@ if __name__ == '__main__':
         screen.fill(Color(255,255,255))
         board = Board(screen)
         board.draw()
-        clock = pygame.time.Clock()
 
         cont = True
         while cont:
-            clock.tick(60)
+            clock.tick(FRAMERATE)
             pygame.display.flip()
-            cont = input(pygame.event.get())
+            cont = dispatch(pygame.event.get())
 
+        del board.rows #
         pygame.quit()
     except:
-        pygame.quit()
+        pass
         raise
 
     print 'Memoized nodes:', MEMOIZED_NODES
