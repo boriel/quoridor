@@ -131,8 +131,7 @@ class Pawn(Drawable):
             col = None,
             walls = NUM_WALLS,
             width = CELL_WIDTH - CELL_PAD,
-            height = CELL_HEIGHT - CELL_PAD,
-            AI = False  # Se to True so the computer moves this pawn
+            height = CELL_HEIGHT - CELL_PAD # Se to True so the computer moves this pawn
             ):
         global PAWNS
 
@@ -148,7 +147,8 @@ class Pawn(Drawable):
         self.set_goal()
         self.id = PAWNS
         self.distances = DistArray(self)
-        self.AI = AI
+        self.AI = None
+
         PAWNS += 1
 
 
@@ -366,7 +366,7 @@ class Wall(Drawable):
 
 
     def __str__(self):
-        return "(%i, %i, %i)" % (self.col, self.row, int(self.horiz))
+        return "(%i, %i, %i)" % (self.row, self.col, int(self.horiz))
 
     @property
     def coords(self):
@@ -572,7 +572,7 @@ class Board(Drawable):
         self.cols = cols
         self.cell_pad = cell_padding
         self.mouse_wall = None # Wall painted on mouse move
-        self.player = 1 # Current player 0 or 1
+        self.player = 0 # Current player 0 or 1
         self.board = []
         self.computing = False # True if a non-human player is moving
 
@@ -586,21 +586,22 @@ class Board(Drawable):
                             color = PAWN_A_COL,
                             border_color = PAWN_BORDER_COL,
                             row = rows - 1,
-                            col = cols >> 1 # Middle top
+                            col = cols >> 1 # Middle
                             )]
         self.pawns += [Pawn(board = self,
                             color = PAWN_B_COL,
                             border_color = PAWN_BORDER_COL,
                             row = 0,
-                            col = cols >> 1,
-                            AI = True # Middle top
+                            col = cols >> 1 # Middle
                             )]
 
         self.regenerate_board(CELL_COLOR, CELL_BORDER_COLOR)
         self.num_players = DEFAULT_NUM_PLAYERS
         self.walls = [] # Walls placed on board
         self.draw_players_info()
-        self.AI = AI(self.pawns[1])
+        self.__AI = []
+
+        self.__AI += [AI(self.pawns[0])]
 
 
     def regenerate_board(self, c_color, cb_color, c_width = CELL_WIDTH,
@@ -728,11 +729,11 @@ class Board(Drawable):
             self.next_player()
             self.draw_players_info()
 
-            if self.current_player.AI:
-                self.computing = True
-                thread = threading.Thread(target = self.computer_move)
-                thread.start()
-                #self.computer_move()
+            #if self.current_player.AI:
+            #    self.computing = True
+            #    thread = threading.Thread(target = self.computer_move)
+            #    thread.start()
+            #    #self.computer_move()
 
             return
 
@@ -947,7 +948,7 @@ class Board(Drawable):
                 self.draw()
                 self.draw_players_info()
                 #pygame.display.flip()
-                action, x = self.AI.move()
+                action, x = self.current_player.AI.move()
                 print action, x
                 if isinstance(action, Wall):
                     self.putWall(action)
@@ -966,6 +967,7 @@ class Board(Drawable):
 
         except AttributeError, v:
             # This exception is only raised (or should be) on users Break
+            raise
             pass
 
         #pygame.display.flip()
@@ -1131,7 +1133,7 @@ class DistArray(CellArray):
 
 
     @property
-    def shortest_path(self):
+    def shortest_path_len(self):
         ''' Return len of the shortest path
         '''
         return min([self.array[i][j] for i, j in self.pawn.valid_moves])
@@ -1146,6 +1148,9 @@ class AI(object):
         self.level = level # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
+
+        pawn.AI = self
+
 
     @property
     def available_actions(self):
@@ -1198,7 +1203,7 @@ class AI(object):
             if move in self.pawn.goals:
                 return (move, -99)
 
-        move, h, alpha, beta = self.think(False)
+        move, h, alpha, beta = self.think(bool(self.level % 2))
         self.clean_memo()
         return move, h
 
@@ -1228,7 +1233,12 @@ class AI(object):
         stop = False
 
         if ilevel >= self.level: # OK we must return the movement
-            HH = -99 if MAX else 99
+            HH = 99
+            #HH = -99 if MAX else 99
+
+            h0 = self.distances.shortest_path_len
+            hh0 = self.board.pawns[(self.board.player + 1) % 2].distances.shortest_path_len
+            next_player = (self.board.player + 1) % len(self.board.pawns)
 
             for action in self.available_actions:
                 if isinstance(action, Wall):
@@ -1239,16 +1249,30 @@ class AI(object):
                     j = self.pawn.j
                     self.pawn.move_to(*action)
 
-                self.board.update_pawns_distances()
-                h = self.distances.shortest_path
                 p = self.pawn
+                self.board.update_pawns_distances()
+                h1 = self.distances.shortest_path_len
+                hh1 = min([pawn.distances.shortest_path_len \
+                    for pawn in self.board.pawns if pawn is not p])
+                h = h1 - hh1 # The heuristic value
 
-                for pawn in self.board.pawns:
-                    if pawn is not p:
-                        h -= pawn.distances.shortest_path
+                '''
+                if str(action) == '(0, 4, 1)':
+                    print action, '------------------'
 
-                if MAX:
-                    h = -h
+                if str(action) == '(0, 4, 1)':
+                    print action, '------------------'
+                    print p.valid_moves
+                    #self.board.draw()
+                    #sys.exit(1)
+                '''
+
+                # OK h => my minimum distance - mimimum one of the player nearest
+                # to the goal. So the smallest (NEGATIVE) h the better for ME,
+                # If we are in a MIN level
+
+                ''' if MAX:
+                    #h = -h
                     if h > HH:
                         HH = h
                         result = action
@@ -1256,7 +1280,7 @@ class AI(object):
                         if HH >= alpha:
                             HH = alpha
                             stop = True
-                else:
+                else: # MIN => The opponent
                     if h < HH:
                         HH = h
                         result = action
@@ -1264,6 +1288,35 @@ class AI(object):
                         if HH <= beta:
                             HH = beta
                             stop = True
+                '''
+
+                # print h, HH, h0, h1, hh0, hh1, '-->>', action, '...'
+
+                if h < HH:
+                    # print h, HH, h0, h1, hh0, hh1, '-->>', action, '!!!'
+                    #h0 = h1
+                    #hh0 = hh1
+                    HH = h
+                    result = action
+
+                    if MAX:
+                        if HH >= alpha:
+                            HH = alpha
+                            stop = True
+                    else:
+                        if HH <= beta:
+                            HH = beta
+                            stop = True
+
+                        alfa = HH
+
+
+                elif self.level == 0 and h == HH and h1 <= h0 and hh1 > hh0:
+                    # print h, HH, h0, h1, hh0, hh1, '-->>', action, '!!!'
+                    #h0 = h1
+                    #hh0 = hh1
+                    #HH = h
+                    result = action
 
                 #  Undo action
                 if isinstance(action, Wall):
@@ -1279,7 +1332,7 @@ class AI(object):
             return (result, HH, alpha, beta)
 
         # Not a leaf in the search tree. Alpha-Beta minimax
-        HH = -99 if ilevel % 2 else 99
+        HH = -99 if MAX else 99
         player = self.board.current_player
         player.distances.push_state()
         r = self.available_actions
@@ -1296,10 +1349,11 @@ class AI(object):
 
             self.board.next_player()
             dummy, h, alpha1, beta1 = self.think(not MAX, ilevel + 1, alpha, beta)
-            print dummy, h, '<<<'
+            print action, '|', dummy, h, '<<<'
             self.previous_player()
 
             if MAX:
+                print h, HH
                 if h > HH: # MAX
                     result, HH = action, h
                     if HH >= alpha:
@@ -1328,6 +1382,7 @@ class AI(object):
 
         player.distances.pop_state()
         self.__memoize_think[k] = (result, HH, alpha, beta)
+        print result
         return (result, HH, alpha, beta)
 
 
@@ -1355,7 +1410,7 @@ def dispatch(events):
             return False
 
         if hasattr(event, 'key'):
-            if event.key == K_ESCAPE:
+            if event.key == K_ESCAPE or board.finished:
                 return False
 
         if board.finished or board.computing:
@@ -1391,15 +1446,18 @@ if __name__ == '__main__':
             clock.tick(FRAMERATE)
             pygame.display.flip()
 
-            if not board.computing and board.current_player.AI:
-                board.computer_move()
+            if not board.computing and not board.finished and board.current_player.AI:
+                board.computing = True
+                thread = threading.Thread(target = board.computer_move)
+                thread.start()
+                #self.computer_move()
+                #board.computer_move()
 
             cont = dispatch(pygame.event.get())
 
         del board.rows #
         pygame.quit()
     except:
-        pass
         raise
 
     print 'Memoized nodes:', MEMOIZED_NODES
