@@ -572,7 +572,7 @@ class Board(Drawable):
         self.cols = cols
         self.cell_pad = cell_padding
         self.mouse_wall = None # Wall painted on mouse move
-        self.player = 0 # Current player 0 or 1
+        self.player = 1 # Current player 0 or 1
         self.board = []
         self.computing = False # True if a non-human player is moving
 
@@ -746,8 +746,8 @@ class Board(Drawable):
             self.next_player()
             self.draw_players_info()
 
-            if self.current_player.AI:
-                self.computer_move()
+        #    if self.current_player.AI:
+        #        self.computer_move()
 
 
     def onMouseMotion(self, x, y):
@@ -1390,6 +1390,10 @@ if __name__ == '__main__':
         while cont:
             clock.tick(FRAMERATE)
             pygame.display.flip()
+
+            if not board.computing and board.current_player.AI:
+                board.computer_move()
+
             cont = dispatch(pygame.event.get())
 
         del board.rows #
