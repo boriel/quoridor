@@ -1168,9 +1168,19 @@ class AI(object):
 
         color = self.board[0][0].wall_color
         tmp = []
+        if player.goals[0][0] == 0:
+            II = range(self.board.rows - 2, -1, -1)
+        else:
+            II = range(self.board.rows -1)
 
-        for i in range(self.board.rows - 1):
-            for j in range(self.board.cols - 1):
+        if player.goals[0][1] == 0:
+            JJ = range(self.board.cols - 2, -1, -1)
+        else:
+            JJ = range(self.board.cols - 1)
+
+
+        for i in II:
+            for j in JJ:
                 for horiz in (False, True):
                     wall = Wall(self.board, self.board.screen, color, i, j, horiz)
                     if self.board.can_put_wall(wall):
@@ -1290,32 +1300,24 @@ class AI(object):
                             stop = True
                 '''
 
-                # print h, HH, h0, h1, hh0, hh1, '-->>', action, '...'
+                if MAX:
+                    h =-h
+                    if h > HH:
+                        HH = h
+                        result = action
 
-                if h < HH:
-                    # print h, HH, h0, h1, hh0, hh1, '-->>', action, '!!!'
-                    #h0 = h1
-                    #hh0 = hh1
-                    HH = h
-                    result = action
-
-                    if MAX:
                         if HH >= alpha:
                             HH = alpha
                             stop = True
-                    else:
+                elif h < HH: # MIN
+                        HH = h
+                        result = action
+
                         if HH <= beta:
                             HH = beta
                             stop = True
 
-                        alfa = HH
-
-
                 elif self.level == 0 and h == HH and h1 <= h0 and hh1 > hh0:
-                    # print h, HH, h0, h1, hh0, hh1, '-->>', action, '!!!'
-                    #h0 = h1
-                    #hh0 = hh1
-                    #HH = h
                     result = action
 
                 #  Undo action
