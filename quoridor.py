@@ -10,7 +10,10 @@ from pygame import Rect
 import copy
 import re
 import threading
-
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+from SocketServer import ThreadingMixIn
+import xmlrpclib
+import time
 
 try:
     import psyco
@@ -84,11 +87,54 @@ MEMOIZED_WALLS = {}
 MEMOIZED_NODES = 0 # Memoized AI Nodes
 MEMOIZED_NODES_HITS = 0 # Memoized Cache hits
 
+# Network port
+PORT = 8001
+BASE_PORT = 8000
+SERVER_URL = 'http://localhost'
 
-def manhattan((a, b), (c, d)):
-    ''' Manhattan distance
+
+def REPORT(msg):
+    print msg
+
+
+
+class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
+    ''' Enhanced XML-RPC Server with some extended/overloaded functions.
     '''
-    return abs(a - c) + abs(b - d)
+    def serve_forever(self):
+        self.quit = False
+        self.encoding = 'utf-8'
+
+        while not self.quit:
+            self.handle_request()
+
+
+    def terminate(self):
+        self.quit = True
+
+
+    def start(self):
+        REPORT('Starting server')
+        self.thread = threading.Thread(target = self.serve_forever)
+        self.thread.start()
+        REPORT('Done')
+
+
+    def __del__(self):
+        self.terminate()
+
+
+
+def is_server_already_running():
+	server = xmlrpclib.Server('http://localhost:%i' % PORT, allow_none = True, encoding = 'utf-8')
+	try:
+		return server.alive()
+	except:
+		pass
+
+	return False
+
+
 
 
 class Drawable(object):
@@ -131,7 +177,8 @@ class Pawn(Drawable):
             col = None,
             walls = NUM_WALLS,
             width = CELL_WIDTH - CELL_PAD,
-            height = CELL_HEIGHT - CELL_PAD # Se to True so the computer moves this pawn
+            height = CELL_HEIGHT - CELL_PAD, # Set to True so the computer moves this pawn
+            URL = None # Set
             ):
         global PAWNS
 
@@ -149,7 +196,31 @@ class Pawn(Drawable):
         self.distances = DistArray(self)
         self.AI = None
 
+        if URL is not None:
+            REPORT('Connecting to server [%s]' % URL)
+
+            count = 0
+            maxtries = 10
+            while count < maxtries:
+                count += 1
+                try:
+                    NETWORK = xmlrpclib.Server(URL, \
+                        allow_none = True, encoding = 'utf-8')
+                    REPORT('Pinging server...')
+                    if NETWORK.alive():
+                        REPORT('Done!')
+                        break
+                except ValueError:
+                    REPORT('Waiting for server...')
+                    time.sleep(1.5)
+
+            REPORT('Connected!')
+            self.NETWORK = NETWORK
+        else:
+            self.NETWORK = None
+
         PAWNS += 1
+
 
 
     def __set_cell(self, cell):
@@ -312,7 +383,6 @@ class Pawn(Drawable):
             return True
 
         if board is None:
-            #board = [[False] * self.board.cols for i in range(self.board.rows)]
             board = CellArray(self.board, False)
 
         if board[self.i][self.j]:
@@ -576,6 +646,18 @@ class Board(Drawable):
         self.board = []
         self.computing = False # True if a non-human player is moving
 
+        # Create NETWORK server
+        try:
+       	    if not is_server_already_running():
+                self.server = EnhancedServer(("localhost", PORT))
+                REPORT('Servidor activo en localhost:' + str(PORT))
+                self.server.register_introspection_functions()
+                self.server.register_instance(Functions())
+                self.server.start()
+        except:
+            raise
+            self.server = None
+
         for i in range(rows):
             self.board += [[]]
             for j in range(cols):
@@ -586,7 +668,8 @@ class Board(Drawable):
                             color = PAWN_A_COL,
                             border_color = PAWN_BORDER_COL,
                             row = rows - 1,
-                            col = cols >> 1 # Middle
+                            col = cols >> 1 #, # Middle
+                            #URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
                             )]
         self.pawns += [Pawn(board = self,
                             color = PAWN_B_COL,
@@ -600,8 +683,8 @@ class Board(Drawable):
         self.walls = [] # Walls placed on board
         self.draw_players_info()
         self.__AI = []
+        self.__AI += [AI(self.pawns[1])]
 
-        self.__AI += [AI(self.pawns[0])]
 
 
     def regenerate_board(self, c_color, cb_color, c_width = CELL_WIDTH,
@@ -718,7 +801,7 @@ class Board(Drawable):
             if not pawn.can_move(cell.i, cell.j):
                 return
 
-            pawn.move_to(cell.i, cell.j)
+            self.do_action((cell.i, cell.j))
             cell.set_focus(False)
             self.draw()
 
@@ -728,13 +811,6 @@ class Board(Drawable):
 
             self.next_player()
             self.draw_players_info()
-
-            #if self.current_player.AI:
-            #    self.computing = True
-            #    thread = threading.Thread(target = self.computer_move)
-            #    thread.start()
-            #    #self.computer_move()
-
             return
 
         wall = self.wall(x, y)
@@ -742,13 +818,9 @@ class Board(Drawable):
             return
 
         if self.can_put_wall(wall):
-            self.putWall(wall)
-            self.current_player.walls -= 1
+            self.do_action(wall)
             self.next_player()
             self.draw_players_info()
-
-        #    if self.current_player.AI:
-        #        self.computer_move()
 
 
     def onMouseMotion(self, x, y):
@@ -940,6 +1012,23 @@ class Board(Drawable):
             self.draw_player_info(i)
 
 
+    def do_action(self, action):
+        ''' Performs a playing action: move a pawn or place a barrier.
+        Transmit the action to the network, to inform other players.
+        '''
+        if isinstance(action, Wall):
+            self.putWall(action)
+            self.current_player.walls -= 1
+            net_act = [action.row, action.col, action.horiz]
+        else:
+            self.current_player.move_to(*action)
+            net_act = list(action)
+
+        for pawn in self.pawns:
+            if pawn.NETWORK is not None:
+                pawn.NETWORK.do_action(net_act)
+
+
     def computer_move(self):
         ''' Performs computer moves for every non-human player
         '''
@@ -947,14 +1036,9 @@ class Board(Drawable):
             while self.current_player.AI and not self.finished:
                 self.draw()
                 self.draw_players_info()
-                #pygame.display.flip()
                 action, x = self.current_player.AI.move()
                 print action, x
-                if isinstance(action, Wall):
-                    self.putWall(action)
-                    self.current_player.walls -= 1
-                else:
-                    self.current_player.move_to(*action)
+                self.do_action(action)
 
                 if self.finished:
                     break
@@ -970,7 +1054,28 @@ class Board(Drawable):
             raise
             pass
 
-        #pygame.display.flip()
+
+    def network_move(self):
+        ''' Waits for pawn moving
+        '''
+        while self.current_player.NETWORK and not self.finished:
+            self.draw()
+            self.draw_players_info()
+
+            if isinstance(action, Wall):
+                self.putWall(action)
+                self.current_player.walls -= 1
+            else:
+                self.current_player.move_to(*action)
+
+            if self.finished:
+                break
+
+            self.next_player()
+
+        self.draw()
+        self.draw_players_info()
+        self.computing = False
 
 
     @property
@@ -1168,19 +1273,9 @@ class AI(object):
 
         color = self.board[0][0].wall_color
         tmp = []
-        if player.goals[0][0] == 0:
-            II = range(self.board.rows - 2, -1, -1)
-        else:
-            II = range(self.board.rows -1)
 
-        if player.goals[0][1] == 0:
-            JJ = range(self.board.cols - 2, -1, -1)
-        else:
-            JJ = range(self.board.cols - 1)
-
-
-        for i in II:
-            for j in JJ:
+        for i in range(self.board.rows - 1):
+            for j in range(self.board.cols - 1):
                 for horiz in (False, True):
                     wall = Wall(self.board, self.board.screen, color, i, j, horiz)
                     if self.board.can_put_wall(wall):
@@ -1266,39 +1361,9 @@ class AI(object):
                     for pawn in self.board.pawns if pawn is not p])
                 h = h1 - hh1 # The heuristic value
 
-                '''
-                if str(action) == '(0, 4, 1)':
-                    print action, '------------------'
-
-                if str(action) == '(0, 4, 1)':
-                    print action, '------------------'
-                    print p.valid_moves
-                    #self.board.draw()
-                    #sys.exit(1)
-                '''
-
                 # OK h => my minimum distance - mimimum one of the player nearest
                 # to the goal. So the smallest (NEGATIVE) h the better for ME,
                 # If we are in a MIN level
-
-                ''' if MAX:
-                    #h = -h
-                    if h > HH:
-                        HH = h
-                        result = action
-
-                        if HH >= alpha:
-                            HH = alpha
-                            stop = True
-                else: # MIN => The opponent
-                    if h < HH:
-                        HH = h
-                        result = action
-
-                        if HH <= beta:
-                            HH = beta
-                            stop = True
-                '''
 
                 if MAX:
                     h =-h
@@ -1406,6 +1471,35 @@ class AI(object):
 
 
 
+class Functions:
+    ''' Class with XML exported functions.
+    '''
+    def __init__(self):
+        ''' ...
+        '''
+        print "hi"
+
+    def alive(self):
+        ''' Returns True if the server is alive.
+        '''
+        return True
+
+
+    def do_action(self, T):
+        if len(T) == 3: # It's a wall
+            pass
+        else:
+            t = tuple(T)
+
+        if board.current_player.NETWORK:
+            board.do_action(T)
+            return True
+
+        return False # Not allowed
+
+
+
+
 def dispatch(events):
     for event in events:
         if event.type == QUIT:
@@ -1415,7 +1509,7 @@ def dispatch(events):
             if event.key == K_ESCAPE or board.finished:
                 return False
 
-        if board.finished or board.computing:
+        if board.finished or board.computing or board.current_player.NETWORK:
             continue
 
         if event.type == MOUSEBUTTONDOWN:
@@ -1448,18 +1542,24 @@ if __name__ == '__main__':
             clock.tick(FRAMERATE)
             pygame.display.flip()
 
-            if not board.computing and not board.finished and board.current_player.AI:
-                board.computing = True
-                thread = threading.Thread(target = board.computer_move)
-                thread.start()
-                #self.computer_move()
-                #board.computer_move()
+            if not board.computing and not board.finished:
+                if board.current_player.AI:
+                    board.computing = True
+                    thread = threading.Thread(target = board.computer_move)
+                    thread.start()
+                else:
+                    try:
+                        if board.current_player.NETWORK:
+                            board.network_move()
+                    except:
+                        REPORT('Network error...')
+                        pass
 
             cont = dispatch(pygame.event.get())
 
         del board.rows #
         pygame.quit()
-    except:
+    except AttributeError:
         raise
 
     print 'Memoized nodes:', MEMOIZED_NODES
