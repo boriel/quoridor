@@ -208,6 +208,7 @@ class Pawn(Drawable):
         self.id = PAWNS
         self.distances = DistArray(self)
         self.AI = None
+        self.is_network_player = False
 
         if URL is not None:
             REPORT('Connecting to server [%s]' % URL)
@@ -229,6 +230,7 @@ class Pawn(Drawable):
 
             REPORT('Connected!')
             self.NETWORK = NETWORK
+            self.is_network_player = True
         else:
             self.NETWORK = None
 
@@ -1038,7 +1040,7 @@ class Board(Drawable):
             net_act = list(action)
 
         for pawn in self.pawns:
-            if pawn.NETWORK is not None:
+            if pawn.is_network_player:
                 pawn.NETWORK.do_action(net_act)
 
 
@@ -1071,7 +1073,11 @@ class Board(Drawable):
     def network_move(self):
         ''' Waits for pawn moving
         '''
-        while self.current_player.NETWORK and not self.finished:
+        self.draw()
+        self.draw_players_info()
+        return
+
+        while self.current_player.is_network_player and not self.finished:
             self.draw()
             self.draw_players_info()
 
@@ -1506,8 +1512,11 @@ class Functions:
         else:
             t = tuple(T)
 
-        if board.current_player.NETWORK:
+        if board.current_player.is_network_player:
             board.do_action(T)
+            if not board.finished:
+                board.next_player()
+
             return True
 
         return False # Not allowed
@@ -1524,7 +1533,7 @@ def dispatch(events):
             if event.key == K_ESCAPE or board.finished:
                 return False
 
-        if board.finished or board.computing or board.current_player.NETWORK:
+        if board.finished or board.computing or board.current_player.is_network_player:
             continue
 
         if event.type == MOUSEBUTTONDOWN:
@@ -1564,9 +1573,9 @@ if __name__ == '__main__':
                     thread.start()
                 else:
                     try:
-                        if board.current_player.NETWORK:
+                        if board.current_player.is_network_player:
                             board.network_move()
-                    except:
+                    except ValueError:
                         REPORT('Network error...')
                         pass
 
