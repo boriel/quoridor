@@ -14,6 +14,7 @@ from SimpleXMLRPCServer import SimpleXMLRPCServer
 from SocketServer import ThreadingMixIn
 import xmlrpclib
 import time
+import socket
 
 try:
     import psyco
@@ -94,7 +95,7 @@ SERVER_URL = 'http://localhost'
 
 
 def REPORT(msg):
-    print msg
+    print 'INFO: %s' % msg
 
 
 
@@ -107,6 +108,8 @@ class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
 
         while not self.quit:
             self.handle_request()
+
+        REPORT('Server closed')
 
 
     def terminate(self):
@@ -133,6 +136,16 @@ def is_server_already_running():
 		pass
 
 	return False
+
+
+def terminate_server():
+    server = xmlrpclib.Server('http://localhost:%i' % PORT, allow_none = True, encoding = 'utf-8')
+    try:
+        board.server.terminate()
+        server.close()
+    except:
+		pass
+
 
 
 
@@ -210,7 +223,7 @@ class Pawn(Drawable):
                     if NETWORK.alive():
                         REPORT('Done!')
                         break
-                except ValueError:
+                except socket.error:
                     REPORT('Waiting for server...')
                     time.sleep(1.5)
 
@@ -668,8 +681,8 @@ class Board(Drawable):
                             color = PAWN_A_COL,
                             border_color = PAWN_BORDER_COL,
                             row = rows - 1,
-                            col = cols >> 1 #, # Middle
-                            #URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
+                            col = cols >> 1 , # Middle
+                            URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
                             )]
         self.pawns += [Pawn(board = self,
                             color = PAWN_B_COL,
@@ -1474,15 +1487,17 @@ class AI(object):
 class Functions:
     ''' Class with XML exported functions.
     '''
-    def __init__(self):
-        ''' ...
-        '''
-        print "hi"
-
     def alive(self):
         ''' Returns True if the server is alive.
         '''
         return True
+
+
+    def close(self):
+        ''' Closes the server
+        '''
+        board.server.terminate()
+        return False
 
 
     def do_action(self, T):
@@ -1558,9 +1573,12 @@ if __name__ == '__main__':
             cont = dispatch(pygame.event.get())
 
         del board.rows #
-        pygame.quit()
     except AttributeError:
-        raise
+        pass
+        #raise
+
+    pygame.quit()
+    terminate_server()
 
     print 'Memoized nodes:', MEMOIZED_NODES
     print 'Memoized nodes hits:', MEMOIZED_NODES_HITS
