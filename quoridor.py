@@ -1508,12 +1508,14 @@ class Functions:
 
     def do_action(self, T):
         if len(T) == 3: # It's a wall
-            pass
+            color = board[0][0].wall_color
+            action = Wall(board, board.screen, color, T[0], T[1], T[2])
         else:
-            t = tuple(T)
+            action = tuple(T)
 
         if board.current_player.is_network_player:
-            board.do_action(T)
+            board.do_action(action)
+
             if not board.finished:
                 board.next_player()
 
@@ -1571,6 +1573,7 @@ if __name__ == '__main__':
                     board.computing = True
                     thread = threading.Thread(target = board.computer_move)
                     thread.start()
+                '''
                 else:
                     try:
                         if board.current_player.is_network_player:
@@ -1578,6 +1581,7 @@ if __name__ == '__main__':
                     except ValueError:
                         REPORT('Network error...')
                         pass
+                '''
 
             cont = dispatch(pygame.event.get())
 
