@@ -23,7 +23,7 @@ except ImportError:
 
 
 # Debug FLAG
-__DEBUG__ = True
+__DEBUG__ = False
 
 # Frame rate
 FRAMERATE = 25
@@ -35,7 +35,7 @@ DEFAULT_NUM_PLAYERS = 2
 # Cell size
 CELL_WIDTH = 50
 CELL_HEIGHT = 50
-CELL_PAD = 5
+CELL_PAD = 7
 CELL_BORDER_SIZE = 2
 
 # Default Number of rows and cols
@@ -289,7 +289,7 @@ class Pawn(Drawable):
 
 
     def can_go(self, direction):
-        ''' One of 'N', 'S', 'W', 'W'
+        ''' One of 'N', 'S', 'E', 'W'
         Returns False if can't go in that direction. Otherwise, returns
         a list of possible coordinates.
         '''
@@ -406,11 +406,11 @@ class Pawn(Drawable):
         board[self.i][self.j] = True
 
         for i, j in self.valid_moves:
-            x = self.i
-            y = self.j
+            I = self.i
+            J = self.j
             self.move_to(i, j)
             result = self.can_reach_goal(board)
-            self.move_to(x, y)
+            self.move_to(I, J)
             if result:
                 return True
 
@@ -665,12 +665,13 @@ class Board(Drawable):
         try:
        	    if not is_server_already_running():
                 self.server = EnhancedServer(("localhost", PORT))
-                REPORT('Servidor activo en localhost:' + str(PORT))
+                REPORT('Network server active at TCP PORT ' + str(PORT))
                 self.server.register_introspection_functions()
                 self.server.register_instance(Functions())
                 self.server.start()
         except:
-            raise
+            #raise
+            REPORT('Could not start network server')
             self.server = None
 
         for i in range(rows):
@@ -683,8 +684,8 @@ class Board(Drawable):
                             color = PAWN_A_COL,
                             border_color = PAWN_BORDER_COL,
                             row = rows - 1,
-                            col = cols >> 1 , # Middle
-                            URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
+                            col = cols >> 1 #, # Middle
+                            #URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
                             )]
         self.pawns += [Pawn(board = self,
                             color = PAWN_B_COL,
@@ -1066,35 +1067,7 @@ class Board(Drawable):
 
         except AttributeError, v:
             # This exception is only raised (or should be) on users Break
-            raise
             pass
-
-
-    def network_move(self):
-        ''' Waits for pawn moving
-        '''
-        self.draw()
-        self.draw_players_info()
-        return
-
-        while self.current_player.is_network_player and not self.finished:
-            self.draw()
-            self.draw_players_info()
-
-            if isinstance(action, Wall):
-                self.putWall(action)
-                self.current_player.walls -= 1
-            else:
-                self.current_player.move_to(*action)
-
-            if self.finished:
-                break
-
-            self.next_player()
-
-        self.draw()
-        self.draw_players_info()
-        self.computing = False
 
 
     @property
@@ -1314,8 +1287,9 @@ class AI(object):
 
         for q in self.__memoize_think.keys():
             if not r.match(q):
-                print q
-                print k
+                # __DEBUG__
+                #print q
+                #print k
                 del self.__memoize_think[q]
 
 
@@ -1345,7 +1319,8 @@ class AI(object):
         k = str(ilevel) + self.board.status[1:]
         try:
             r = self.__memoize_think[k]
-            print k
+            # __DEBUG__
+            #print k
             MEMOIZED_NODES_HITS += 1
             return r
         except KeyError:
@@ -1353,7 +1328,8 @@ class AI(object):
             pass
 
         result = None
-        print alpha, beta
+        # __DEBUG__
+        # print alpha, beta
         stop = False
 
         if ilevel >= self.level: # OK we must return the movement
@@ -1423,23 +1399,26 @@ class AI(object):
         player.distances.push_state()
         r = self.available_actions
 
-        for action in r: #self.available_actions:
+        for action in r:
             if isinstance(action, Wall):
                 self.board.putWall(action)
                 self.pawn.walls -= 1
             else:
-                print action, ilevel
+                # __DEBUG__
+                # print action, ilevel
                 i = self.pawn.i
                 j = self.pawn.j
                 self.pawn.move_to(*action)
 
             self.board.next_player()
             dummy, h, alpha1, beta1 = self.think(not MAX, ilevel + 1, alpha, beta)
-            print action, '|', dummy, h, '<<<'
+            # __DEBUG__
+            # print action, '|', dummy, h, '<<<'
             self.previous_player()
 
             if MAX:
-                print h, HH
+                # __DEBUG__
+                # print h, HH
                 if h > HH: # MAX
                     result, HH = action, h
                     if HH >= alpha:
@@ -1468,7 +1447,8 @@ class AI(object):
 
         player.distances.pop_state()
         self.__memoize_think[k] = (result, HH, alpha, beta)
-        print result
+        # DEBUG__
+        # print result
         return (result, HH, alpha, beta)
 
 
@@ -1535,7 +1515,7 @@ def dispatch(events):
             if event.key == K_ESCAPE or board.finished:
                 return False
 
-        if board.finished or board.computing or board.current_player.is_network_player:
+        if board.computing or board.finished or board.current_player.is_network_player:
             continue
 
         if event.type == MOUSEBUTTONDOWN:
@@ -1573,15 +1553,6 @@ if __name__ == '__main__':
                     board.computing = True
                     thread = threading.Thread(target = board.computer_move)
                     thread.start()
-                '''
-                else:
-                    try:
-                        if board.current_player.is_network_player:
-                            board.network_move()
-                    except ValueError:
-                        REPORT('Network error...')
-                        pass
-                '''
 
             cont = dispatch(pygame.event.get())
 
@@ -1593,9 +1564,9 @@ if __name__ == '__main__':
     pygame.quit()
     terminate_server()
 
-    print 'Memoized nodes:', MEMOIZED_NODES
-    print 'Memoized nodes hits:', MEMOIZED_NODES_HITS
+    REPORT('Memoized nodes: %i' % MEMOIZED_NODES)
+    REPORT('Memoized nodes hits: %i' % MEMOIZED_NODES_HITS)
 
     for pawn in board.pawns:
-        print 'Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT)
-        print 'Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS)
+        REPORT('Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT))
+        REPORT('Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS))
