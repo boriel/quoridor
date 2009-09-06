@@ -69,6 +69,12 @@ PAWN_A_COL = Color(158, 60, 60) # Red
 PAWN_B_COL = Color(60, 60, 158) # Blue
 PAWN_BORDER_COL = Color(188, 188, 80) # Yellow
 
+# Gauge bars
+GAUGE_WIDTH = CELL_WIDTH
+GAUGE_HEIGHT = 5
+GAUGE_COLOR = Color(128, 40, 40)
+GAUGE_BORDER_COLOR = Color(0, 0, 0)
+
 # Other constants
 PAWN_PADDING = 25 # Pixels right to the board
 
@@ -210,6 +216,7 @@ class Pawn(Drawable):
         self.distances = DistArray(self)
         self.AI = None
         self.is_network_player = False
+        self.percent = None
 
         if URL is not None:
             REPORT('Connecting to server [%s]' % URL)
@@ -998,6 +1005,16 @@ class Board(Drawable):
             pygame.draw.rect(screen, self.color, r, 0)
 
         pawn.draw(r)
+        R = Rect(r.x + 1, r.y + r.h + 3, GAUGE_WIDTH, GAUGE_HEIGHT)
+
+        if pawn.percent is not None:
+            pygame.draw.rect(screen, FONT_BG_COLOR, R, 0) # Erases old gauge bar
+            R.width = GAUGE_WIDTH * pawn.percent
+            pygame.draw.rect(screen, GAUGE_COLOR, R, 0)
+            R.width = GAUGE_WIDTH
+            pygame.draw.rect(screen, GAUGE_BORDER_COLOR, R, 1)
+        else:
+            pygame.draw.rect(screen, FONT_BG_COLOR, R, 0)
 
         r.x += r.width + 20
         r.width = 6
@@ -1340,8 +1357,6 @@ class AI(object):
 
         if ilevel >= self.level: # OK we must return the movement
             HH = 99
-            #HH = -99 if MAX else 99
-
             h0 = self.distances.shortest_path_len
             hh0 = self.board.pawns[(self.board.player + 1) % 2].distances.shortest_path_len
             next_player = (self.board.player + 1) % len(self.board.pawns)
@@ -1405,7 +1420,18 @@ class AI(object):
         player.distances.push_state()
         r = self.available_actions
 
+        count_r = 0
+        player.percent = 0 # Percentaje done
+        L = float(len(r))
+
         for action in r:
+            if not ilevel:
+                count_r += 1
+                player.percent = count_r / L # [0..1]
+                if __DEBUG__:
+                    REPORT('Player %i is thinking: %2.0f%% done.' % (player.id, player.percent * 100))
+                self.board.draw_player_info(player.id)
+
             if isinstance(action, Wall):
                 self.board.putWall(action)
                 self.pawn.walls -= 1
@@ -1570,7 +1596,7 @@ if __name__ == '__main__':
         del board.rows #
     except AttributeError:
         pass
-        #raise
+        raise
 
     pygame.quit()
     terminate_server()
