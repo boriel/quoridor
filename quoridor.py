@@ -1329,6 +1329,7 @@ class AI(object):
             if move in self.pawn.goals:
                 return (move, -99)
 
+        self.pawn.percent = 0 # Percentaje done
         move, h, alpha, beta = self.think(bool(self.level % 2))
         self.clean_memo()
         self.distances.clean_memo()
@@ -1425,13 +1426,11 @@ class AI(object):
         player = self.board.current_player
         player.distances.push_state()
         r = self.available_actions
-
         count_r = 0
-        player.percent = 0 # Percentaje done
         L = float(len(r))
 
         for action in r:
-            if not ilevel:
+            if not ilevel and player.percent is not None:
                 count_r += 1
                 player.percent = count_r / L # [0..1]
                 if __DEBUG__:
