@@ -16,6 +16,9 @@ import xmlrpclib
 import time
 import socket
 
+from optparse import OptionParser
+
+
 try:
     import psyco
 except ImportError:
@@ -99,6 +102,9 @@ NETWORK_ENABLED = False # Set to true to enable network playing
 PORT = 8001 # This client port
 BASE_PORT = 8000
 SERVER_URL = 'http://localhost'
+
+# Default AI playing level
+LEVEL = 0
 
 
 def REPORT(msg):
@@ -707,8 +713,8 @@ class Board(Drawable):
         self.walls = [] # Walls placed on board
         self.draw_players_info()
         self.__AI = []
-        self.__AI += [AI(self.pawns[0])]
-        self.__AI += [AI(self.pawns[1])]
+        #self.__AI += [AI(self.pawns[0])]
+        self.__AI += [AI(self.pawns[1], level = LEVEL)]
 
 
 
@@ -1158,13 +1164,14 @@ class DistArray(CellArray):
     def clean_memo(self):
         ''' Frees memory by removing unused states.
         '''
-        L = len(self.board.pawns) * 4 + 1
-        k = '.' * L + self.board.status[L:]
-        r = re.compile(k.replace('1', '.'))
+        L = 1 + len(self.board.pawns) * 4
+        k = self.board.status[L:]
+        k = '.' * L + k.replace('1', '.') + '$'
+        r = re.compile(k)
 
-        for q in self.MEMODISTANCES.keys():
+        for q in self.MEMOIZE_DISTANCES.keys():
             if not r.match(q):
-                del self.MEMODISTANCES[q]
+                del self.MEMOIZE_DISTANCES[q]
 
 
     def update(self):
@@ -1189,7 +1196,7 @@ class DistArray(CellArray):
             self.lock(i, j)
 
         self.update_distances()
-        self.MEMOIZE_DISTANCES[k] = copy.deepcopy(self.array)
+        self.MEMOIZE_DISTANCES[k] = self.array
 
 
     def lock(self, i, j):
@@ -1270,6 +1277,7 @@ class AI(object):
         self.__memoize_think = {}
 
         pawn.AI = self
+        REPORT('Player %i is moved by computers A.I. with level %i' % (pawn.id, level))
 
 
     @property
@@ -1310,9 +1318,6 @@ class AI(object):
 
         for q in self.__memoize_think.keys():
             if not r.match(q):
-                # __DEBUG__
-                #print q
-                #print k
                 del self.__memoize_think[q]
 
 
@@ -1326,6 +1331,7 @@ class AI(object):
 
         move, h, alpha, beta = self.think(bool(self.level % 2))
         self.clean_memo()
+        self.distances.clean_memo()
         return move, h
 
 
@@ -1562,8 +1568,16 @@ def dispatch(events):
 
 
 
-
 if __name__ == '__main__':
+    parser = OptionParser()
+    parser.add_option("-l", "--level", dest="level",
+                      help="AI player Level. Default is 0 (Easy). Higher is harder)",
+                      default = LEVEL, type = 'int')
+
+    (options, args) = parser.parse_args()
+
+    LEVEL = options.level
+
     try:
         REPORT('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
         REPORT('This program is Free')
@@ -1596,7 +1610,7 @@ if __name__ == '__main__':
         del board.rows #
     except AttributeError:
         pass
-        raise
+        #raise
 
     pygame.quit()
     terminate_server()
