@@ -89,7 +89,8 @@ MEMOIZED_NODES = 0 # Memoized AI Nodes
 MEMOIZED_NODES_HITS = 0 # Memoized Cache hits
 
 # Network port
-PORT = 8001
+NETWORK_ENABLED = False # Set to true to enable network playing
+PORT = 8001 # This client port
 BASE_PORT = 8000
 SERVER_URL = 'http://localhost'
 
@@ -663,7 +664,7 @@ class Board(Drawable):
 
         # Create NETWORK server
         try:
-       	    if not is_server_already_running():
+       	    if NETWORK_ENABLED and not is_server_already_running():
                 self.server = EnhancedServer(("localhost", PORT))
                 REPORT('Network server active at TCP PORT ' + str(PORT))
                 self.server.register_introspection_functions()
@@ -699,6 +700,7 @@ class Board(Drawable):
         self.walls = [] # Walls placed on board
         self.draw_players_info()
         self.__AI = []
+        self.__AI += [AI(self.pawns[0])]
         self.__AI += [AI(self.pawns[1])]
 
 
@@ -1032,11 +1034,16 @@ class Board(Drawable):
         ''' Performs a playing action: move a pawn or place a barrier.
         Transmit the action to the network, to inform other players.
         '''
+        ID = self.current_player.id
+
         if isinstance(action, Wall):
+            wdir = 'horizontal' if action.horiz else 'vertical'
+            REPORT('Player %i places %s wall at (%i, %i)' % (ID, wdir, action.col, action.row))
             self.putWall(action)
             self.current_player.walls -= 1
             net_act = [action.row, action.col, action.horiz]
         else:
+            REPORT('Player %i moves to (%i, %i)' % (ID, action[0], action[1]))
             self.current_player.move_to(*action)
             net_act = list(action)
 
@@ -1053,7 +1060,6 @@ class Board(Drawable):
                 self.draw()
                 self.draw_players_info()
                 action, x = self.current_player.AI.move()
-                print action, x
                 self.do_action(action)
 
                 if self.finished:
@@ -1533,6 +1539,10 @@ def dispatch(events):
 
 if __name__ == '__main__':
     try:
+        REPORT('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
+        REPORT('This program is Free')
+        REPORT('Initializing system...')
+
         pygame.init()
         clock = pygame.time.Clock()
         window = pygame.display.set_mode((800, 600))
@@ -1542,6 +1552,7 @@ if __name__ == '__main__':
         screen.fill(Color(255,255,255))
         board = Board(screen)
         board.draw()
+        REPORT('System initialized OK')
 
         cont = True
         while cont:
@@ -1570,3 +1581,5 @@ if __name__ == '__main__':
     for pawn in board.pawns:
         REPORT('Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT))
         REPORT('Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS))
+
+    REPORT('Exiting. Bye!')
