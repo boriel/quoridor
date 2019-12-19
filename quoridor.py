@@ -1,8 +1,6 @@
 #!/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
-import os
 import pygame
 from pygame.locals import *
 from pygame import Color
@@ -10,20 +8,13 @@ from pygame import Rect
 import copy
 import re
 import threading
-from SimpleXMLRPCServer import SimpleXMLRPCServer
-from SocketServer import ThreadingMixIn
-import xmlrpclib
+from xmlrpc.server import SimpleXMLRPCServer
+from socketserver import ThreadingMixIn
+import xmlrpc.client
 import time
 import socket
 
 from optparse import OptionParser
-
-
-try:
-    import psyco
-except ImportError:
-    pass
-
 
 # Debug FLAG
 __DEBUG__ = False
@@ -62,15 +53,15 @@ BOARD_BRD_SIZE = 1
 # Cell colors
 CELL_BORDER_COLOR = Color(40, 40, 40)
 CELL_COLOR = Color(120, 90, 60)
-CELL_VALID_COLOR = Color(40, 120, 120) # Cyan
+CELL_VALID_COLOR = Color(40, 120, 120)  # Cyan
 
 # Wall Color
 WALL_COLOR = Color(10, 10, 10)
 
 # Pawns color
-PAWN_A_COL = Color(158, 60, 60) # Red
-PAWN_B_COL = Color(60, 60, 158) # Blue
-PAWN_BORDER_COL = Color(188, 188, 80) # Yellow
+PAWN_A_COL = Color(158, 60, 60)  # Red
+PAWN_B_COL = Color(60, 60, 158)  # Blue
+PAWN_BORDER_COL = Color(188, 188, 80)  # Yellow
 
 # Gauge bars
 GAUGE_WIDTH = CELL_WIDTH
@@ -79,9 +70,9 @@ GAUGE_COLOR = Color(128, 40, 40)
 GAUGE_BORDER_COLOR = Color(0, 0, 0)
 
 # Other constants
-PAWN_PADDING = 25 # Pixels right to the board
+PAWN_PADDING = 25  # Pixels right to the board
 
-# Avaiable directions
+# Available directions
 dirs = ['N', 'S', 'E', 'W']
 dirs_delta = {'N': (-1, 0), 'S': (+1, 0), 'E': (0, -1), 'W': (0, +1)}
 opposite_dirs = {'N': 'S', 'S': 'N', 'W': 'E', 'E': 'W'}
@@ -94,12 +85,12 @@ PAWNS = 0
 MEMOIZED_WALLS = {}
 
 # --- Statistics ---
-MEMOIZED_NODES = 0 # Memoized AI Nodes
-MEMOIZED_NODES_HITS = 0 # Memoized Cache hits
+MEMOIZED_NODES = 0  # Memoized AI Nodes
+MEMOIZED_NODES_HITS = 0  # Memoized Cache hits
 
 # Network port
-NETWORK_ENABLED = False # Set to true to enable network playing
-PORT = 8001 # This client port
+NETWORK_ENABLED = False  # Set to true to enable network playing
+PORT = 8001  # This client port
 BASE_PORT = 8000
 SERVER_URL = 'http://localhost'
 
@@ -108,14 +99,14 @@ LEVEL = 0
 
 
 def REPORT(msg):
-    print 'INFO: %s' % msg
-
+    print('INFO: %s' % msg)
 
 
 class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
-    ''' Enhanced XML-RPC Server with some extended/overloaded functions.
-    '''
-    def serve_forever(self):
+    """ Enhanced XML-RPC Server with some extended/overloaded functions.
+    """
+
+    def serve_forever(self, poll_interval=0.5):
         self.quit = False
         self.encoding = 'utf-8'
 
@@ -124,51 +115,45 @@ class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
 
         REPORT('Server closed')
 
-
     def terminate(self):
         self.quit = True
 
-
     def start(self):
         REPORT('Starting server')
-        self.thread = threading.Thread(target = self.serve_forever)
+        self.thread = threading.Thread(target=self.serve_forever)
         self.thread.start()
         REPORT('Done')
-
 
     def __del__(self):
         self.terminate()
 
 
-
 def is_server_already_running():
-	server = xmlrpclib.Server('http://localhost:%i' % PORT, allow_none = True, encoding = 'utf-8')
-	try:
-		return server.alive()
-	except:
-		pass
+    client = xmlrpc.client.Server('http://localhost:%i' % PORT, allow_none=True, encoding='utf-8')
+    try:
+        return client.alive()
+    except:
+        pass
 
-	return False
+    return False
 
 
 def terminate_server():
-    server = xmlrpclib.Server('http://localhost:%i' % PORT, allow_none = True, encoding = 'utf-8')
+    client = xmlrpc.client.Server('http://localhost:%i' % PORT, allow_none=True, encoding='utf-8')
     try:
         board.server.terminate()
-        server.close()
+        client.close()
     except:
-		pass
-
-
-
+        pass
 
 
 class Drawable(object):
-    ''' Abstract drawable class
-    '''
-    def __init__(self, color = None,
-                    border_color = None,
-                    border_size = None):
+    """ Abstract drawable class
+    """
+
+    def __init__(self, color=None,
+                 border_color=None,
+                 border_size=None):
         self.color = color
         self.border_color = border_color
         self.border_size = border_size
@@ -189,23 +174,24 @@ class Drawable(object):
 
     @property
     def rect(self):
-        ''' Must be overloaded by children classes
-        '''
+        """ Must be overloaded by children classes
+        """
         return None
 
 
 class Pawn(Drawable):
-    ''' Class defining a player pawn
-    '''
+    """ Class defining a player pawn
+    """
+
     def __init__(self, board, color,
-            border_color = PAWN_BORDER_COL,
-            row = None,
-            col = None,
-            walls = NUM_WALLS,
-            width = CELL_WIDTH - CELL_PAD,
-            height = CELL_HEIGHT - CELL_PAD, # Set to True so the computer moves this pawn
-            URL = None # Set
-            ):
+                 border_color=PAWN_BORDER_COL,
+                 row=None,
+                 col=None,
+                 walls=NUM_WALLS,
+                 width=CELL_WIDTH - CELL_PAD,
+                 height=CELL_HEIGHT - CELL_PAD,  # Set to True so the computer moves this pawn
+                 URL=None  # Set
+                 ):
         global PAWNS
 
         self.color = color
@@ -215,7 +201,7 @@ class Pawn(Drawable):
         self.i = row
         self.j = col
         self.board = board
-        self.walls = walls # Walls per player
+        self.walls = walls  # Walls per player
         self.__cell = None
         self.set_goal()
         self.id = PAWNS
@@ -232,8 +218,7 @@ class Pawn(Drawable):
             while count < maxtries:
                 count += 1
                 try:
-                    NETWORK = xmlrpclib.Server(URL, \
-                        allow_none = True, encoding = 'utf-8')
+                    NETWORK = xmlrpc.client.Server(URL, allow_none=True, encoding='utf-8')
                     REPORT('Pinging server...')
                     if NETWORK.alive():
                         REPORT('Done!')
@@ -250,17 +235,14 @@ class Pawn(Drawable):
 
         PAWNS += 1
 
-
-
     def __set_cell(self, cell):
-        if self.__cell is not None: # Remove old cell if any
+        if self.__cell is not None:  # Remove old cell if any
             self.__cell.pawn = None
 
         self.__cell = cell
 
         if cell is not None:
             self.__cell.pawn = self
-
 
     def __get_cell(self):
         row, col = (self.i, self.j)
@@ -271,11 +253,10 @@ class Pawn(Drawable):
 
     cell = property(__get_cell, __set_cell)
 
-
     def set_goal(self):
-        ''' Sets a list of possible goals (cells) for this
+        """ Sets a list of possible goals (cells) for this
         player.
-        '''
+        """
         if self.i == 0:
             self.goals = [(self.board.rows - 1, x) for x in range(self.board.cols)]
         elif self.i == self.board.rows - 1:
@@ -285,8 +266,7 @@ class Pawn(Drawable):
         else:
             self.goals = [(x, self.board.cols - 1) for x in range(self.board.rows)]
 
-
-    def draw(self, r = None):
+    def draw(self, r=None):
         if self.i is None or self.j is None:
             return
 
@@ -296,26 +276,24 @@ class Pawn(Drawable):
         pygame.draw.ellipse(self.board.screen, self.color, r, 0)
         pygame.draw.ellipse(self.board.screen, self.border_color, r, 2)
 
-
     @property
     def rect(self):
         return self.board[self.i][self.j].rect
 
-
     def can_go(self, direction):
-        ''' One of 'N', 'S', 'E', 'W'
+        """ One of 'N', 'S', 'E', 'W'
         Returns False if can't go in that direction. Otherwise, returns
         a list of possible coordinates.
-        '''
+        """
         if self.cell is None:
-            return False # Uninitalized
+            return False  # Uninitalized
 
         d = direction.upper()
         if d not in dirs:
             return False  # Unknown move
 
         if self.cell.path[d] is False:
-            return False # Blocked in that direction
+            return False  # Blocked in that direction
 
         I, J = dirs_delta[d]
         I += self.i
@@ -324,13 +302,13 @@ class Pawn(Drawable):
         if not self.board.in_range(I, J):
             return False
 
-        if self.board[I][J].pawn is None: # Is it free?
+        if self.board[I][J].pawn is None:  # Is it free?
             return [(I, J)]
 
         # Ok there's a pawn at I, J. Check for adjacent
         result = []
 
-        for di in dirs: # Check for any direction
+        for di in dirs:  # Check for any direction
             if di == opposite_dirs[d]:
                 continue
 
@@ -347,30 +325,28 @@ class Pawn(Drawable):
 
         return result
 
-
     @property
     def valid_moves(self):
-        ''' Returns a list of valid moves as a tuples of (row, col)
-        coordinates'''
+        """ Returns a list of valid moves as a tuples of (row, col)
+        coordinates
+        """
         result = []
 
         if self.cell is None:
             return result
 
-        for d in dirs: # Try each direction
+        for d in dirs:  # Try each direction
             coords = self.can_go(d)
             if coords:
                 result += coords
 
         return result
 
-
-
     def valid_moves_from(self, i, j):
-        ''' Returns a list of valid moves from (i, j).
+        """ Returns a list of valid moves from (i, j).
         (i, j) can be a different position from the
         current one.
-        '''
+        """
         y = self.i
         x = self.j
         self.i = i
@@ -381,10 +357,10 @@ class Pawn(Drawable):
 
         return result
 
-
     def can_move(self, i, j):
-        ''' Returns whether the pawn can move to position
-        (i, j) '''
+        """ Returns whether the pawn can move to position
+        (i, j)
+        """
         if i < 0 or i >= self.board.rows:
             return False
 
@@ -393,22 +369,20 @@ class Pawn(Drawable):
 
         return (i, j) in self.valid_moves
 
-
     def move_to(self, i, j):
-        ''' Places pawn at i, j. For a valid move, can_move should
+        """ Places pawn at i, j. For a valid move, can_move should
         be called first.
-        '''
+        """
         if self.board.in_range(i, j):
             self.i = i
             self.j = j
             self.cell = self.board[i][j]
 
-
-    def can_reach_goal(self, board = None):
-        ''' True if this player can reach a goal,
+    def can_reach_goal(self, board=None):
+        """ True if this player can reach a goal,
         false if it is blocked and there's no way to reach it.
-        '''
-        if (self.i, self.j) in self.goals: # Already in goal?
+        """
+        if (self.i, self.j) in self.goals:  # Already in goal?
             return True
 
         if board is None:
@@ -430,26 +404,25 @@ class Pawn(Drawable):
 
         return False
 
-
     @property
     def status(self):
-        ''' Returns a string containing 'IJ' coordinates.
-        '''
+        """ Returns a string containing 'IJ' coordinates.
+        """
         return str(self.i) + str(self.j) + '%02i' % self.walls
 
 
-
 class Wall(Drawable):
-    ''' Class for painting a Wall
-    '''
+    """ Class for painting a Wall
+    """
+
     def __init__(self,
-        board, # parent object
-        surface,
-        color,
-        row = None, # Wall coordinates
-        col = None,
-        horiz = None, # whether this wall lays horizontal o vertically
-        ):
+                 board,  # parent object
+                 surface,
+                 color,
+                 row=None,  # Wall coordinates
+                 col=None,
+                 horiz=None,  # whether this wall lays horizontal o vertically
+                 ):
         self.board = board
         self.screen = surface
         self.horiz = horiz
@@ -457,21 +430,19 @@ class Wall(Drawable):
         self.row = row
         self.color = color
 
-
     def __eq__(self, other):
         return self.horiz == other.horiz and \
-                self.col == other.col and \
-                self.row == other.row
-
+               self.col == other.col and \
+               self.row == other.row
 
     def __str__(self):
         return "(%i, %i, %i)" % (self.row, self.col, int(self.horiz))
 
     @property
     def coords(self):
-        ''' Returns a list with 2 t-uples containing coord of
+        """ Returns a list with 2 t-uples containing coord of
         wall cells. Cells are top / left to the wall.
-        '''
+        """
         if self.horiz is None or self.col is None or self.row is None:
             return None
 
@@ -479,7 +450,6 @@ class Wall(Drawable):
             return [(self.row, self.col), (self.row, self.col + 1)]
 
         return [(self.row, self.col), (self.row + 1, self.col)]
-
 
     @property
     def rect(self):
@@ -502,17 +472,15 @@ class Wall(Drawable):
 
         return Rect(x, y, w, h)
 
-
     def draw(self):
         if self.color is None:
             return
 
         pygame.draw.rect(screen, self.color, self.rect, 0)
 
-
     def collides(self, wall):
-        ''' Returns if the given wall collides with this one
-        '''
+        """ Returns if the given wall collides with this one
+        """
         if self.horiz == wall.horiz:
             wc = wall.coords
             for c in self.coords:
@@ -527,33 +495,33 @@ class Wall(Drawable):
 
         return False
 
-
     @property
     def status(self):
-        ''' Returns a string containing IJH
-        '''
+        """ Returns a string containing IJH
+        """
         return str(self.col) + str(self.row) + str(int(self.horiz))
 
 
 class Cell(Drawable):
-    ''' A simple board cell
-    '''
+    """ A simple board cell
+    """
+
     def __init__(self,
-        board, # Parent object
-        surface, # pygame surface
-        i, # row pos. starting from top
-        j, # col pos. starting from left
-        x = None, # absolute screen position
-        y = None, # absolute screen position
-        width = CELL_WIDTH,
-        height = CELL_HEIGHT,
-        color = CELL_COLOR,
-        wall_color = WALL_COLOR,
-        focus_color = CELL_VALID_COLOR,
-        border_color = CELL_BORDER_COLOR,
-        border_size = CELL_BORDER_SIZE,
-        pawn = None # Reference to the Pawn this cell contains or None
-        ):
+                 board,  # Parent object
+                 surface,  # pygame surface
+                 i,  # row pos. starting from top
+                 j,  # col pos. starting from left
+                 x=None,  # absolute screen position
+                 y=None,  # absolute screen position
+                 width=CELL_WIDTH,
+                 height=CELL_HEIGHT,
+                 color=CELL_COLOR,
+                 wall_color=WALL_COLOR,
+                 focus_color=CELL_VALID_COLOR,
+                 border_color=CELL_BORDER_COLOR,
+                 border_size=CELL_BORDER_SIZE,
+                 pawn=None  # Reference to the Pawn this cell contains or None
+                 ):
 
         Drawable.__init__(self, color, border_color)
 
@@ -568,11 +536,11 @@ class Cell(Drawable):
         self.focus_color = focus_color
         self.pawn = pawn
         self.board = board
-        self.walls = [] # Walls lists
+        self.walls = []  # Walls lists
         self.i = i
         self.j = j
-        self.has_focus = False # True if mouse on cell
-        self.status = '00' # S and E walls
+        self.has_focus = False  # True if mouse on cell
+        self.status = '00'  # S and E walls
 
         # Available paths
         self.path = {}
@@ -590,36 +558,33 @@ class Cell(Drawable):
             self.path['W'] = False
             self.status == '01'
 
-
     def set_path(self, direction, value):
-        ''' Sets the path 'N', 'S', 'W', E', to True or False.
+        """ Sets the path 'N', 'S', 'W', E', to True or False.
         False means no way in that direction. Updates neighbour
         cells accordingly.
-        '''
+        """
         d = direction.upper()
         self.path[d] = value
         i1, j1 = dirs_delta[d]
         i = self.i + i1
         j = self.j + j1
 
-        s = str(int(value)) # '0' or '1'
+        s = str(int(value))  # '0' or '1'
         if d == 'S':
             self.status = s + self.status[-1]
         elif d == 'W':
             self.status = self.status[0] + s
 
         if not self.board.in_range(i, j):
-            return # Nothing to do
+            return  # Nothing to do
 
         self.board[i][j].path[opposite_dirs[d]] = value
-
 
     def draw(self):
         Drawable.draw(self)
 
         if self.pawn:
             self.pawn.draw()
-
 
     def onMouseMotion(self, x, y):
         if not self.rect.collidepoint(x, y):
@@ -632,7 +597,6 @@ class Cell(Drawable):
         if self.board.current_player.can_move(self.i, self.j):
             self.set_focus(True)
 
-
     def set_focus(self, val):
         val = bool(val)
         if self.has_focus == val:
@@ -642,49 +606,47 @@ class Cell(Drawable):
         self.has_focus = val
         self.draw()
 
-
     @property
     def rect(self):
-        ''' Returns Cell owns rect
-        '''
+        """ Returns Cell owns rect
+        """
         return Rect(self.x, self.y, self.width, self.height)
 
 
-
 class Board(Drawable):
-    ''' Quoridor board.
+    """ Quoridor board.
     This object contains te state of the game.
-    '''
+    """
 
     def __init__(self,
-        screen,
-        rows = DEF_ROWS,
-        cols = DEF_COLS,
-        cell_padding = CELL_PAD,
-        color = BOARD_BG_COLOR,
-        border_color = BOARD_BRD_COLOR,
-        border_size = BOARD_BRD_SIZE):
+                 screen,
+                 rows=DEF_ROWS,
+                 cols=DEF_COLS,
+                 cell_padding=CELL_PAD,
+                 color=BOARD_BG_COLOR,
+                 border_color=BOARD_BRD_COLOR,
+                 border_size=BOARD_BRD_SIZE):
 
         Drawable.__init__(self, color, border_color, border_size)
         self.screen = screen
         self.rows = rows
         self.cols = cols
         self.cell_pad = cell_padding
-        self.mouse_wall = None # Wall painted on mouse move
-        self.player = 0 # Current player 0 or 1
+        self.mouse_wall = None  # Wall painted on mouse move
+        self.player = 0  # Current player 0 or 1
         self.board = []
-        self.computing = False # True if a non-human player is moving
+        self.computing = False  # True if a non-human player is moving
 
         # Create NETWORK server
         try:
-       	    if NETWORK_ENABLED and not is_server_already_running():
+            if NETWORK_ENABLED and not is_server_already_running():
                 self.server = EnhancedServer(("localhost", PORT))
                 REPORT('Network server active at TCP PORT ' + str(PORT))
                 self.server.register_introspection_functions()
                 self.server.register_instance(Functions())
                 self.server.start()
         except:
-            #raise
+            # raise
             REPORT('Could not start network server')
             self.server = None
 
@@ -694,36 +656,33 @@ class Board(Drawable):
                 self.board[-1] += [Cell(self, screen, i, j)]
 
         self.pawns = []
-        self.pawns += [Pawn(board = self,
-                            color = PAWN_A_COL,
-                            border_color = PAWN_BORDER_COL,
-                            row = rows - 1,
-                            col = cols >> 1 #, # Middle
-                            #URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
+        self.pawns += [Pawn(board=self,
+                            color=PAWN_A_COL,
+                            border_color=PAWN_BORDER_COL,
+                            row=rows - 1,
+                            col=cols >> 1  # , # Middle
+                            # URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
                             )]
-        self.pawns += [Pawn(board = self,
-                            color = PAWN_B_COL,
-                            border_color = PAWN_BORDER_COL,
-                            row = 0,
-                            col = cols >> 1 # Middle
+        self.pawns += [Pawn(board=self,
+                            color=PAWN_B_COL,
+                            border_color=PAWN_BORDER_COL,
+                            row=0,
+                            col=cols >> 1  # Middle
                             )]
 
         self.regenerate_board(CELL_COLOR, CELL_BORDER_COLOR)
         self.num_players = DEFAULT_NUM_PLAYERS
-        self.walls = [] # Walls placed on board
+        self.walls = []  # Walls placed on board
         self.draw_players_info()
         self.__AI = []
-        #self.__AI += [AI(self.pawns[0])]
-        self.__AI += [AI(self.pawns[1], level = LEVEL)]
+        # self.__AI += [AI(self.pawns[0])]
+        self.__AI += [AI(self.pawns[1], level=LEVEL)]
 
-
-
-    def regenerate_board(self, c_color, cb_color, c_width = CELL_WIDTH,
-        c_height = CELL_HEIGHT):
-        ''' Regenerate board colors and cell positions.
+    def regenerate_board(self, c_color, cb_color, c_width=CELL_WIDTH, c_height=CELL_HEIGHT):
+        """ Regenerate board colors and cell positions.
         Must be called on initialization or whenever a screen attribute
         changes (eg. color, board size, etc)
-        '''
+        """
         Y = self.cell_pad
         for i in range(self.rows):
             X = self.cell_pad
@@ -747,10 +706,10 @@ class Board(Drawable):
 
             Y += c_height + self.cell_pad
 
-
     def draw(self):
-        ''' Draws a squared n x n board, defaults
-        to the standard 9 x 9 '''
+        """ Draws a squared n x n board, defaults
+        to the standard 9 x 9
+        """
         Drawable.draw(self)
 
         for y in range(self.rows):
@@ -766,30 +725,26 @@ class Board(Drawable):
         for wall in self.walls:
             wall.draw()
 
-
     def cell(self, row, col):
-        ''' Returns board cell at the given
+        """ Returns board cell at the given
         row and column
-        '''
+        """
         return self.board[row][col]
-
 
     def __getitem__(self, i):
         return self.board[i]
 
-
     def in_range(self, col, row):
-        '''Returns whether te given coordinate are within the board or not
-        '''
-        return col >= 0 and col < self.cols and row >= 0 and row < self.rows
-
+        """ Returns whether te given coordinate are within the board or not
+        """
+        return 0 <= col < self.cols and 0 <= row < self.rows
 
     def putWall(self, wall):
-        ''' Puts the given wall on the board.
+        """ Puts the given wall on the board.
         The cells are updated accordingly
-        '''
+        """
         if wall in self.walls:
-            return # If already put, nothing to do
+            return  # If already put, nothing to do
 
         self.walls += [wall]
 
@@ -803,13 +758,12 @@ class Board(Drawable):
             self.board[i][j].set_path('W', False)
             self.board[i + 1][j].set_path('W', False)
 
-
     def removeWall(self, wall):
-        ''' Removes a wall from the board.
+        """ Removes a wall from the board.
         The cells are updated accordingly
-        '''
+        """
         if wall not in self.walls:
-            return # Already removed, nothing to do
+            return  # Already removed, nothing to do
 
         self.walls.remove(wall)
         i = wall.row
@@ -822,10 +776,9 @@ class Board(Drawable):
             self.board[i][j].set_path('W', True)
             self.board[i + 1][j].set_path('W', True)
 
-
     def onMouseClick(self, x, y):
-        ''' Dispatch mouse click Event
-        '''
+        """ Dispatch mouse click Event
+        """
         cell = self.which_cell(x, y)
         if cell is not None:
             pawn = self.current_player
@@ -853,10 +806,9 @@ class Board(Drawable):
             self.next_player()
             self.draw_players_info()
 
-
     def onMouseMotion(self, x, y):
-        ''' Get mouse motion event and acts accordingly
-        '''
+        """ Get mouse motion event and acts accordingly
+        """
 
         if not self.rect.collidepoint(x, y):
             return
@@ -870,10 +822,10 @@ class Board(Drawable):
                 self.mouse_wall = None
                 self.draw()
 
-            return # The focus was on a cell, we're done
+            return  # The focus was on a cell, we're done
 
         if not self.current_player.walls:
-            return # The current player has run out of walls. We're done
+            return  # The current player has run out of walls. We're done
 
         wall = self.wall(x, y)
         if not wall:
@@ -884,11 +836,10 @@ class Board(Drawable):
             self.draw()
             wall.draw()
 
-
     def can_put_wall(self, wall):
-        ''' Returns whether the given wall can be put
+        """ Returns whether the given wall can be put
         on the board.
-        '''
+        """
         if not self.current_player.walls:
             return False
 
@@ -908,11 +859,10 @@ class Board(Drawable):
         self.removeWall(wall)
         return result
 
-
     def wall(self, x, y):
-        ''' Returns which wall is below mouse cursor at x, y coords.
+        """ Returns which wall is below mouse cursor at x, y coords.
         Returns None if no wall matches x, y coords
-        '''
+        """
         if not self.rect.collidepoint(x, y):
             return None
 
@@ -935,53 +885,45 @@ class Board(Drawable):
 
         return Wall(self, self.screen, cell.wall_color, i, j, horiz)
 
-
     @property
     def x(self):
-        ''' Absolute left coordinate
-        '''
+        """ Absolute left coordinate
+        """
         return self.board[0][0].x
-
 
     @property
     def y(self):
-        ''' Absolute left coordinate
-        '''
+        """ Absolute left coordinate
+        """
         return self.board[0][0].y
-
 
     @property
     def width(self):
         return (self.cell_pad + self.board[0][0].width) * self.cols
 
-
     @property
     def height(self):
         return (self.cell_pad + self.board[0][0].height) * self.rows
-
 
     @property
     def rect(self):
         return Rect(self.x, self.y, self.width, self.height)
 
-
     def next_player(self):
-        ''' Switchs to next player
-        '''
+        """ Switches to next player
+        """
         self.player = (self.player + 1) % self.num_players
         self.update_pawns_distances()
-
 
     def update_pawns_distances(self):
         for pawn in self.pawns:
             pawn.distances.update()
 
-
     def which_cell(self, x, y):
-        ''' Returns an instance of the cell for which (x, y) screen coord
+        """ Returns an instance of the cell for which (x, y) screen coord
         matches. Otherwise, returns None if no cell is at (x, y) screen
         coords.
-        '''
+        """
         for row in self.board:
             for cell in row:
                 if cell.rect.collidepoint(x, y):
@@ -989,17 +931,15 @@ class Board(Drawable):
 
         return None
 
-
     @property
     def current_player(self):
-        ''' Returns current player's pawn
-        '''
+        """ Returns current player's pawn
+        """
         return self.pawns[self.player]
 
-
     def draw_player_info(self, player_num):
-        ''' Draws player pawn at board + padding_offset
-        '''
+        """ Draws player pawn at board + padding_offset
+        """
         pawn = self.pawns[player_num]
         r = pawn.rect
         r.x = self.rect.x + self.rect.width + PAWN_PADDING
@@ -1014,7 +954,7 @@ class Board(Drawable):
         R = Rect(r.x + 1, r.y + r.h + 3, GAUGE_WIDTH, GAUGE_HEIGHT)
 
         if pawn.percent is not None:
-            pygame.draw.rect(screen, FONT_BG_COLOR, R, 0) # Erases old gauge bar
+            pygame.draw.rect(screen, FONT_BG_COLOR, R, 0)  # Erases old gauge bar
             R.width = GAUGE_WIDTH * pawn.percent
             pygame.draw.rect(screen, GAUGE_COLOR, R, 0)
             R.width = GAUGE_WIDTH
@@ -1039,24 +979,21 @@ class Board(Drawable):
             y = self.rect.y + self.rect.height + PAWN_PADDING
             self.msg(x, y, "Press any key to EXIT")
 
-
-    def msg(self, x, y, str, color = FONT_COLOR, fsize = FONT_SIZE):
-        Font = pygame.font.SysFont(None, fsize)
-        fnt = Font.render(str, True, color)
+    def msg(self, x, y, str, color=FONT_COLOR, fsize=FONT_SIZE):
+        font = pygame.font.SysFont(None, fsize)
+        fnt = font.render(str, True, color)
         self.screen.blit(fnt, (x, y))
 
-
     def draw_players_info(self):
-        ''' Calls the above funcion for every player.
-        '''
+        """ Calls the above funcion for every player.
+        """
         for i in range(len(self.pawns)):
             self.draw_player_info(i)
 
-
     def do_action(self, action):
-        ''' Performs a playing action: move a pawn or place a barrier.
+        """ Performs a playing action: move a pawn or place a barrier.
         Transmit the action to the network, to inform other players.
-        '''
+        """
         ID = self.current_player.id
 
         if isinstance(action, Wall):
@@ -1074,10 +1011,9 @@ class Board(Drawable):
             if pawn.is_network_player:
                 pawn.NETWORK.do_action(net_act)
 
-
     def computer_move(self):
-        ''' Performs computer moves for every non-human player
-        '''
+        """ Performs computer moves for every non-human player
+        """
         try:
             while self.current_player.AI and not self.finished:
                 self.draw()
@@ -1094,26 +1030,25 @@ class Board(Drawable):
             self.draw_players_info()
             self.computing = False
 
-        except AttributeError, v:
+        except AttributeError as v:
             # This exception is only raised (or should be) on users Break
             pass
 
-
     @property
     def finished(self):
-        ''' Returns whether the match has finished
+        """ Returns whether the match has finished
         or not.
-        '''
+        """
         for pawn in self.pawns:
             if (pawn.i, pawn.j) in pawn.goals:
                 return True
 
         return False
 
-
     @property
     def status(self):
-        ''' Status serialization in a t-uple'''
+        """ Status serialization in a t-uple
+        """
         result = str(self.player)
 
         for p in self.pawns:
@@ -1126,28 +1061,26 @@ class Board(Drawable):
         return result
 
 
-
 class CellArray(object):
-    ''' Creates an array of the given value, with
+    """ Creates an array of the given value, with
     se same size of the board.
-    '''
+    """
+
     def __init__(self, board, value):
         self.board = board
         self.rows = board.rows
         self.cols = board.cols
-
-        self.array = [[value for col in range(self.cols)] \
-            for row in range(self.rows)]
+        self.array = [[value for col in range(self.cols)] for _ in range(self.rows)]
 
     def __getitem__(self, i):
         return self.array[i]
 
 
-
 class DistArray(CellArray):
-    ''' An array which calculates minimun distances
+    """ An array which calculates minimun distances
     for each cell.
-    '''
+    """
+
     def __init__(self, pawn):
         self.pawn = pawn
         CellArray.__init__(self, pawn.board, 99)
@@ -1160,10 +1093,9 @@ class DistArray(CellArray):
         self.stack = []
         self.update()
 
-
     def clean_memo(self):
-        ''' Frees memory by removing unused states.
-        '''
+        """ Frees memory by removing unused states.
+        """
         L = 1 + len(self.board.pawns) * 4
         k = self.board.status[L:]
         k = '.' * L + k.replace('1', '.') + '$'
@@ -1173,11 +1105,10 @@ class DistArray(CellArray):
             if not r.match(q):
                 del self.MEMOIZE_DISTANCES[q]
 
-
     def update(self):
-        ''' Computes minimun distances from the current
+        """ Computes minimun distances from the current
         position to the goal.
-        '''
+        """
         k = self.board.status
         try:
             self.array = copy.deepcopy(self.MEMOIZE_DISTANCES[k])
@@ -1192,27 +1123,25 @@ class DistArray(CellArray):
                 self.array[i][j] = 99
 
         for i, j in self.pawn.goals:
-            self.array[i][j] = 0 # Already in the goal
+            self.array[i][j] = 0  # Already in the goal
             self.lock(i, j)
 
         self.update_distances()
         self.MEMOIZE_DISTANCES[k] = self.array
 
-
     def lock(self, i, j):
-        ''' Sets the lock to true, and adds the given coord
+        """ Sets the lock to true, and adds the given coord
         to the queue.
-        '''
+        """
         if self.locks[i][j]:
-            return # Already locked
+            return  # Already locked
 
         self.locks[i][j] = True
         self.queue += [(i, j)]
 
-
     def update_cell(self, i, j):
-        ''' Updates the cell if not locked yet.
-        '''
+        """ Updates the cell if not locked yet.
+        """
         if (i, j) in self.pawn.goals:
             return
 
@@ -1222,7 +1151,6 @@ class DistArray(CellArray):
         if newval < self.array[i][j]:
             self.array[i][j] = newval
             self.lock(i, j)
-
 
     def update_distances(self):
         cell = self.pawn.cell
@@ -1237,7 +1165,6 @@ class DistArray(CellArray):
 
         self.pawn.cell = cell
 
-
     def draw(self):
         for i in range(self.rows):
             for j in range(self.cols):
@@ -1249,43 +1176,39 @@ class DistArray(CellArray):
                 pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)  # Erases previous number
                 self.board.msg(r.x, r.y, str(self.array[i][j]))
 
-
     def push_state(self):
         self.stack += [self.array]
         CellArray.__init__(self, self.pawn.board, 99)
 
-
     def pop_state(self):
         self.array = self.stack.pop()
 
-
     @property
     def shortest_path_len(self):
-        ''' Return len of the shortest path
-        '''
+        """ Return len of the shortest path
+        """
         return min([self.array[i][j] for i, j in self.pawn.valid_moves])
 
 
-
 class AI(object):
-    ''' This class implements the game AI.
-        It could be use to implent an Strategy pattern
-    '''
-    def __init__(self, pawn, level = 1):
-        self.level = level # Level of difficulty
+    """ This class implements the game AI.
+    It could be use to implement an Strategy pattern
+    """
+
+    def __init__(self, pawn, level=1):
+        self.level = level  # Level of difficulty
         self.board = pawn.board
         self.__memoize_think = {}
 
         pawn.AI = self
         REPORT('Player %i is moved by computers A.I. with level %i' % (pawn.id, level))
 
-
     @property
     def available_actions(self):
         player = self.pawn
         result = [x for x in player.valid_moves]
 
-        if not player.walls: # Out of walls?
+        if not player.walls:  # Out of walls?
             return result
 
         try:
@@ -1307,10 +1230,9 @@ class AI(object):
         MEMOIZED_WALLS[k] = tmp
         return result + tmp
 
-
     def clean_memo(self):
-        ''' Removes useless status from the memoized cache.
-        '''
+        """ Removes useless status from the memoized cache.
+        """
         L = 1 + len(self.board.pawns) * 4
         k = self.board.status[L:]
         k = '.' * L + k.replace('1', '.') + '$'
@@ -1320,37 +1242,35 @@ class AI(object):
             if not r.match(q):
                 del self.__memoize_think[q]
 
-
     def move(self):
-        ''' Return best move according to the deep level
-        '''
+        """ Return best move according to the deep level
+        """
         actions = self.pawn.valid_moves
         for move in actions:
             if move in self.pawn.goals:
                 return (move, -99)
 
-        self.pawn.percent = 0 # Percentaje done
+        self.pawn.percent = 0  # Percentage done
         move, h, alpha, beta = self.think(bool(self.level % 2))
         self.clean_memo()
         self.distances.clean_memo()
         return move, h
 
-
-    def think(self, MAX, ilevel = 0, alpha = 99, beta = -99):
-        ''' Returns best movement with the given level of
+    def think(self, MAX, ilevel=0, alpha=99, beta=-99):
+        """ Returns best movement with the given level of
         analysis, and returns it as a Wall (if a wall
         must be put) or as a coordinate pair.
 
         MAX is a boolean with tells if this function is
         looking for a MAX (True) value or a MIN (False) value.
-        '''
+        """
         global MEMOIZED_NODES, MEMOIZED_NODES_HITS
 
         k = str(ilevel) + self.board.status[1:]
         try:
             r = self.__memoize_think[k]
             # __DEBUG__
-            #print k
+            # print(k)
             MEMOIZED_NODES_HITS += 1
             return r
         except KeyError:
@@ -1359,10 +1279,10 @@ class AI(object):
 
         result = None
         # __DEBUG__
-        # print alpha, beta
+        # print(alpha, beta)
         stop = False
 
-        if ilevel >= self.level: # OK we must return the movement
+        if ilevel >= self.level:  # OK we must return the movement
             HH = 99
             h0 = self.distances.shortest_path_len
             hh0 = self.board.pawns[(self.board.player + 1) % 2].distances.shortest_path_len
@@ -1381,15 +1301,15 @@ class AI(object):
                 self.board.update_pawns_distances()
                 h1 = self.distances.shortest_path_len
                 hh1 = min([pawn.distances.shortest_path_len \
-                    for pawn in self.board.pawns if pawn is not p])
-                h = h1 - hh1 # The heuristic value
+                           for pawn in self.board.pawns if pawn is not p])
+                h = h1 - hh1  # The heuristic value
 
                 # OK h => my minimum distance - mimimum one of the player nearest
                 # to the goal. So the smallest (NEGATIVE) h the better for ME,
                 # If we are in a MIN level
 
                 if MAX:
-                    h =-h
+                    h = -h
                     if h > HH:
                         HH = h
                         result = action
@@ -1397,13 +1317,13 @@ class AI(object):
                         if HH >= alpha:
                             HH = alpha
                             stop = True
-                elif h < HH: # MIN
-                        HH = h
-                        result = action
+                elif h < HH:  # MIN
+                    HH = h
+                    result = action
 
-                        if HH <= beta:
-                            HH = beta
-                            stop = True
+                    if HH <= beta:
+                        HH = beta
+                        stop = True
 
                 elif self.level == 0 and h == HH and h1 <= h0 and hh1 > hh0:
                     result = action
@@ -1419,7 +1339,7 @@ class AI(object):
                     break
 
             self.__memoize_think[k] = (result, HH, alpha, beta)
-            return (result, HH, alpha, beta)
+            return result, HH, alpha, beta
 
         # Not a leaf in the search tree. Alpha-Beta minimax
         HH = -99 if MAX else 99
@@ -1432,7 +1352,7 @@ class AI(object):
         for action in r:
             if not ilevel and player.percent is not None:
                 count_r += 1
-                player.percent = count_r / L # [0..1]
+                player.percent = count_r / L  # [0..1]
                 if __DEBUG__:
                     REPORT('Player %i is thinking: %2.0f%% done.' % (player.id, player.percent * 100))
                 self.board.draw_player_info(player.id)
@@ -1456,7 +1376,7 @@ class AI(object):
             if MAX:
                 # __DEBUG__
                 # print h, HH
-                if h > HH: # MAX
+                if h > HH:  # MAX
                     result, HH = action, h
                     if HH >= alpha:
                         HH = alpha
@@ -1464,7 +1384,7 @@ class AI(object):
                     else:
                         beta = HH
             else:
-                if h < HH: # MIN
+                if h < HH:  # MIN
                     result, HH = action, h
                     if HH <= beta:
                         HH = beta
@@ -1488,43 +1408,37 @@ class AI(object):
         # print result
         return (result, HH, alpha, beta)
 
-
     @property
     def pawn(self):
         return self.board.current_player
-
 
     @property
     def distances(self):
         return self.pawn.distances
 
-
     def previous_player(self):
-        ''' Switchs to previous player.
-        '''
-        self.board.player = (self.board.player + self.board.num_players - 1) %\
-            self.board.num_players
-
+        """ Switches to previous player.
+        """
+        self.board.player = (self.board.player + self.board.num_players - 1) % self.board.num_players
 
 
 class Functions:
-    ''' Class with XML exported functions.
-    '''
+    """ Class with XML exported functions.
+    """
+
     def alive(self):
-        ''' Returns True if the server is alive.
-        '''
+        """ Returns True if the server is alive.
+        """
         return True
 
-
     def close(self):
-        ''' Closes the server
-        '''
+        """ Closes the server
+        """
         board.server.terminate()
         return False
 
-
     def do_action(self, T):
-        if len(T) == 3: # It's a wall
+        if len(T) == 3:  # It's a wall
             color = board[0][0].wall_color
             action = Wall(board, board.screen, color, T[0], T[1], T[2])
         else:
@@ -1538,9 +1452,7 @@ class Functions:
 
             return True
 
-        return False # Not allowed
-
-
+        return False  # Not allowed
 
 
 def dispatch(events):
@@ -1566,12 +1478,11 @@ def dispatch(events):
     return True
 
 
-
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-l", "--level", dest="level",
                       help="AI player Level. Default is 0 (Easy). Higher is harder)",
-                      default = LEVEL, type = 'int')
+                      default=LEVEL, type='int')
 
     (options, args) = parser.parse_args()
 
@@ -1588,7 +1499,7 @@ if __name__ == '__main__':
         pygame.display.set_caption(GAME_TITLE)
         screen = pygame.display.get_surface()
 
-        screen.fill(Color(255,255,255))
+        screen.fill(Color(255, 255, 255))
         board = Board(screen)
         board.draw()
         REPORT('System initialized OK')
@@ -1601,15 +1512,15 @@ if __name__ == '__main__':
             if not board.computing and not board.finished:
                 if board.current_player.AI:
                     board.computing = True
-                    thread = threading.Thread(target = board.computer_move)
+                    thread = threading.Thread(target=board.computer_move)
                     thread.start()
 
             cont = dispatch(pygame.event.get())
 
-        del board.rows #
+        del board.rows  #
     except AttributeError:
         pass
-        #raise
+        # raise
 
     pygame.quit()
     terminate_server()
