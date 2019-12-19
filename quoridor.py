@@ -867,8 +867,8 @@ class Board(Drawable):
             return None
 
         # Wall: Guess which top-left cell is it
-        j = (x - self.x) / (self.board[0][0].width + self.cell_pad)
-        i = (y - self.y) / (self.board[0][0].height + self.cell_pad)
+        j = (x - self.x) // (self.board[0][0].width + self.cell_pad)
+        i = (y - self.y) // (self.board[0][0].height + self.cell_pad)
         cell = self.board[i][j]
 
         # Wall: Guess if it is horizontal or vertical
@@ -985,7 +985,7 @@ class Board(Drawable):
         self.screen.blit(fnt, (x, y))
 
     def draw_players_info(self):
-        """ Calls the above funcion for every player.
+        """ Calls the above function for every player.
         """
         for i in range(len(self.pawns)):
             self.draw_player_info(i)
@@ -1063,7 +1063,7 @@ class Board(Drawable):
 
 class CellArray(object):
     """ Creates an array of the given value, with
-    se same size of the board.
+    the same size as the board.
     """
 
     def __init__(self, board, value):
@@ -1248,7 +1248,7 @@ class AI(object):
         actions = self.pawn.valid_moves
         for move in actions:
             if move in self.pawn.goals:
-                return (move, -99)
+                return move, -99
 
         self.pawn.percent = 0  # Percentage done
         move, h, alpha, beta = self.think(bool(self.level % 2))
@@ -1304,7 +1304,7 @@ class AI(object):
                            for pawn in self.board.pawns if pawn is not p])
                 h = h1 - hh1  # The heuristic value
 
-                # OK h => my minimum distance - mimimum one of the player nearest
+                # OK h => my minimum distance - minimum one of the player nearest
                 # to the goal. So the smallest (NEGATIVE) h the better for ME,
                 # If we are in a MIN level
 
@@ -1406,7 +1406,7 @@ class AI(object):
         self.__memoize_think[k] = (result, HH, alpha, beta)
         # DEBUG__
         # print result
-        return (result, HH, alpha, beta)
+        return result, HH, alpha, beta
 
     @property
     def pawn(self):
