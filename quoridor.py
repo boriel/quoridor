@@ -98,7 +98,7 @@ SERVER_URL = 'http://localhost'
 LEVEL = 0
 
 
-def REPORT(msg):
+def log(msg):
     print('INFO: %s' % msg)
 
 
@@ -113,16 +113,16 @@ class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
         while not self.quit:
             self.handle_request()
 
-        REPORT('Server closed')
+        log('Server closed')
 
     def terminate(self):
         self.quit = True
 
     def start(self):
-        REPORT('Starting server')
+        log('Starting server')
         self.thread = threading.Thread(target=self.serve_forever)
         self.thread.start()
-        REPORT('Done')
+        log('Done')
 
     def __del__(self):
         self.terminate()
@@ -130,12 +130,11 @@ class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
 
 def is_server_already_running():
     client = xmlrpc.client.Server('http://localhost:%i' % PORT, allow_none=True, encoding='utf-8')
+    result = False
     try:
-        return client.alive()
-    except:
-        pass
-
-    return False
+        result = client.alive()
+    finally:
+        return result
 
 
 def terminate_server():
@@ -143,8 +142,8 @@ def terminate_server():
     try:
         board.server.terminate()
         client.close()
-    except:
-        pass
+    finally:
+        return
 
 
 class Drawable(object):
@@ -211,7 +210,7 @@ class Pawn(Drawable):
         self.percent = None
 
         if URL is not None:
-            REPORT('Connecting to server [%s]' % URL)
+            log('Connecting to server [%s]' % URL)
 
             count = 0
             maxtries = 10
@@ -219,15 +218,15 @@ class Pawn(Drawable):
                 count += 1
                 try:
                     NETWORK = xmlrpc.client.Server(URL, allow_none=True, encoding='utf-8')
-                    REPORT('Pinging server...')
+                    log('Pinging server...')
                     if NETWORK.alive():
-                        REPORT('Done!')
+                        log('Done!')
                         break
                 except socket.error:
-                    REPORT('Waiting for server...')
+                    log('Waiting for server...')
                     time.sleep(1.5)
 
-            REPORT('Connected!')
+            log('Connected!')
             self.NETWORK = NETWORK
             self.is_network_player = True
         else:
@@ -235,7 +234,16 @@ class Pawn(Drawable):
 
         PAWNS += 1
 
-    def __set_cell(self, cell):
+    @property
+    def cell(self):
+        row, col = (self.i, self.j)
+        if row is None and col is None:
+            return None
+
+        return self.board[row][col]
+
+    @cell.setter
+    def cell(self, cell):
         if self.__cell is not None:  # Remove old cell if any
             self.__cell.pawn = None
 
@@ -243,15 +251,6 @@ class Pawn(Drawable):
 
         if cell is not None:
             self.__cell.pawn = self
-
-    def __get_cell(self):
-        row, col = (self.i, self.j)
-        if row is None and col is None:
-            return None
-
-        return self.board[row][col]
-
-    cell = property(__get_cell, __set_cell)
 
     def set_goal(self):
         """ Sets a list of possible goals (cells) for this
@@ -641,13 +640,13 @@ class Board(Drawable):
         try:
             if NETWORK_ENABLED and not is_server_already_running():
                 self.server = EnhancedServer(("localhost", PORT))
-                REPORT('Network server active at TCP PORT ' + str(PORT))
+                log('Network server active at TCP PORT ' + str(PORT))
                 self.server.register_introspection_functions()
                 self.server.register_instance(Functions())
                 self.server.start()
         except:
             # raise
-            REPORT('Could not start network server')
+            log('Could not start network server')
             self.server = None
 
         for i in range(rows):
@@ -998,12 +997,12 @@ class Board(Drawable):
 
         if isinstance(action, Wall):
             wdir = 'horizontal' if action.horiz else 'vertical'
-            REPORT('Player %i places %s wall at (%i, %i)' % (ID, wdir, action.col, action.row))
+            log('Player %i places %s wall at (%i, %i)' % (ID, wdir, action.col, action.row))
             self.putWall(action)
             self.current_player.walls -= 1
             net_act = [action.row, action.col, action.horiz]
         else:
-            REPORT('Player %i moves to (%i, %i)' % (ID, action[0], action[1]))
+            log('Player %i moves to (%i, %i)' % (ID, action[0], action[1]))
             self.current_player.move_to(*action)
             net_act = list(action)
 
@@ -1201,7 +1200,7 @@ class AI(object):
         self.__memoize_think = {}
 
         pawn.AI = self
-        REPORT('Player %i is moved by computers A.I. with level %i' % (pawn.id, level))
+        log('Player %i is moved by computers A.I. with level %i' % (pawn.id, level))
 
     @property
     def available_actions(self):
@@ -1354,7 +1353,7 @@ class AI(object):
                 count_r += 1
                 player.percent = count_r / L  # [0..1]
                 if __DEBUG__:
-                    REPORT('Player %i is thinking: %2.0f%% done.' % (player.id, player.percent * 100))
+                    log('Player %i is thinking: %2.0f%% done.' % (player.id, player.percent * 100))
                 self.board.draw_player_info(player.id)
 
             if isinstance(action, Wall):
@@ -1489,9 +1488,9 @@ if __name__ == '__main__':
     LEVEL = options.level
 
     try:
-        REPORT('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
-        REPORT('This program is Free')
-        REPORT('Initializing system...')
+        log('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
+        log('This program is Free')
+        log('Initializing system...')
 
         pygame.init()
         clock = pygame.time.Clock()
@@ -1502,7 +1501,7 @@ if __name__ == '__main__':
         screen.fill(Color(255, 255, 255))
         board = Board(screen)
         board.draw()
-        REPORT('System initialized OK')
+        log('System initialized OK')
 
         cont = True
         while cont:
@@ -1525,11 +1524,11 @@ if __name__ == '__main__':
     pygame.quit()
     terminate_server()
 
-    REPORT('Memoized nodes: %i' % MEMOIZED_NODES)
-    REPORT('Memoized nodes hits: %i' % MEMOIZED_NODES_HITS)
+    log('Memoized nodes: %i' % MEMOIZED_NODES)
+    log('Memoized nodes hits: %i' % MEMOIZED_NODES_HITS)
 
     for pawn in board.pawns:
-        REPORT('Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT))
-        REPORT('Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS))
+        log('Memoized distances for [%i]: %i' % (pawn.id, pawn.distances.MEMO_COUNT))
+        log('Memoized distances hits for [%i]: %i' % (pawn.id, pawn.distances.MEMO_HITS))
 
-    REPORT('Exiting. Bye!')
+    log('Exiting. Bye!')
