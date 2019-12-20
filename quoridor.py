@@ -1101,7 +1101,7 @@ class DistArray(CellArray):
         k = '.' * L + k.replace('1', '.') + '$'
         r = re.compile(k)
 
-        for q in self.MEMOIZE_DISTANCES.keys():
+        for q in list(self.MEMOIZE_DISTANCES.keys()):
             if not r.match(q):
                 del self.MEMOIZE_DISTANCES[q]
 
@@ -1238,7 +1238,7 @@ class AI(object):
         k = '.' * L + k.replace('1', '.') + '$'
         r = re.compile(k)
 
-        for q in self.__memoize_think.keys():
+        for q in list(self.__memoize_think.keys()):
             if not r.match(q):
                 del self.__memoize_think[q]
 
