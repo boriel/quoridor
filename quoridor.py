@@ -961,7 +961,7 @@ class Board(Drawable):
         pygame.draw.rect(screen, WALL_COLOR, r, 0)
 
         r.x += r.width * 2 + 10
-        r.y += r.height / 2 - 5
+        r.y += r.height // 2 - 5
         r.height = FONT_SIZE
         r.width *= 3
         pygame.draw.rect(screen, FONT_BG_COLOR, r, 0)  # Erases previous number
