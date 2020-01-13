@@ -414,6 +414,8 @@ class Board(Drawable):
                 self.draw()
                 self.draw_players_info()
                 action, x = self.current_player.AI.move()
+                pygame.mixer.music.load('./media/chime.ogg')
+                pygame.mixer.music.play()
                 self.do_action(action)
 
                 if self.finished:
