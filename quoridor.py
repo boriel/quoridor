@@ -954,7 +954,7 @@ class Board(Drawable):
 
         if pawn.percent is not None:
             pygame.draw.rect(screen, FONT_BG_COLOR, R, 0)  # Erases old gauge bar
-            R.width = GAUGE_WIDTH * pawn.percent
+            R.width = int(GAUGE_WIDTH * pawn.percent)
             pygame.draw.rect(screen, GAUGE_COLOR, R, 0)
             R.width = GAUGE_WIDTH
             pygame.draw.rect(screen, GAUGE_BORDER_COLOR, R, 1)
