@@ -9,7 +9,7 @@ class Drawable(abc.ABC):
     painted in the screen.
     """
     def __init__(self,
-                 screen,
+                 screen: pygame.Surface,
                  color=None,
                  border_color=None,
                  border_size=None):
