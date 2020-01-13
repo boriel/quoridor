@@ -4,12 +4,18 @@ import time
 import pygame
 import socket
 import xmlrpc
+import typing
 
 import config as cfg
 import core
 from helpers import log
 
 from .drawable import Drawable
+
+
+class Coord(typing.NamedTuple):
+    row: int
+    col: int
 
 
 class Pawn(Drawable):
@@ -199,13 +205,13 @@ class Pawn(Drawable):
 
         return (i, j) in self.valid_moves
 
-    def move_to(self, i, j):
+    def move_to(self, row: int, col: int) -> None:
         """ Places pawn at i, j. For a valid move, can_move should
         be called first.
         """
-        if self.board.in_range(i, j):
-            self.i, self.j = i, j
-            self.cell = self.board[i][j]
+        if self.board.in_range(row, col):
+            self.i, self.j = row, col
+            self.cell = self.board[row][col]
 
     def can_reach_goal(self, board=None):
         """ True if this player can reach a goal,
@@ -237,3 +243,13 @@ class Pawn(Drawable):
         """ Returns a string containing 'IJ' coordinates.
         """
         return str(self.i) + str(self.j) + '%02i' % self.walls
+
+    @property
+    def coord(self) -> Coord:
+        """ Returns pawn coordinate (row, col)
+        """
+        return Coord(self.i, self.j)
+
+    @coord.setter
+    def coord(self, coord: Coord) -> None:
+        self.move_to(coord.row, coord.col)
