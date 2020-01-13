@@ -13,8 +13,7 @@ from socketserver import ThreadingMixIn
 import xmlrpc.client
 import time
 import socket
-
-from optparse import OptionParser
+import argparse
 
 from helpers import log
 
@@ -1474,13 +1473,12 @@ def dispatch(events):
 
 
 if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option("-l", "--level", dest="level",
-                      help="AI player Level. Default is 0 (Easy). Higher is harder)",
-                      default=LEVEL, type='int')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-l", "--level", dest="level",
+                        help="AI player Level. Default is 0 (Easy). Higher is harder)",
+                        default=LEVEL, type=int)
 
-    (options, args) = parser.parse_args()
-
+    options = parser.parse_args()
     LEVEL = options.level
 
     try:
@@ -1515,7 +1513,6 @@ if __name__ == '__main__':
         del board.rows  #
     except AttributeError:
         pass
-        # raise
 
     pygame.quit()
     terminate_server()
