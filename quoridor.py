@@ -346,13 +346,10 @@ class Pawn(Drawable):
         (i, j) can be a different position from the
         current one.
         """
-        y = self.i
-        x = self.j
-        self.i = i
-        self.j = j
+        current_pos = self.i, self.j  # Saves current position
+        self.i, self.j = i, j
         result = self.valid_moves
-        self.i = y
-        self.j = x
+        self.i, self.j = current_pos  # Restores current position
 
         return result
 
