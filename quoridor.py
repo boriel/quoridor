@@ -16,6 +16,9 @@ import socket
 
 from optparse import OptionParser
 
+from helpers import log
+
+
 # Debug FLAG
 __DEBUG__ = False
 
@@ -96,10 +99,6 @@ SERVER_URL = 'http://localhost'
 
 # Default AI playing level
 LEVEL = 0
-
-
-def log(msg):
-    print('INFO: %s' % msg)
 
 
 class EnhancedServer(ThreadingMixIn, SimpleXMLRPCServer):
