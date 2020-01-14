@@ -20,7 +20,7 @@ class AI:
     def __init__(self, pawn, level=1):
         self.level = level  # Level of difficulty
         self.board = pawn.board
-        self.__memoize_think = {}
+        self._memoize_think = {}
 
         pawn.AI = self
         log('Player %i is moved by computers A.I. with level %i' % (pawn.id, level), LogLevel.INFO)
@@ -60,9 +60,9 @@ class AI:
         k = '.' * L + k.replace('1', '.') + '$'
         r = re.compile(k)
 
-        for q in list(self.__memoize_think.keys()):
+        for q in list(self._memoize_think.keys()):
             if not r.match(q):
-                del self.__memoize_think[q]
+                del self._memoize_think[q]
 
     def move(self) -> Tuple[Action, int]:
         """ Return best move according to the deep level
@@ -105,7 +105,7 @@ class AI:
         """
         k = str(ilevel) + self.board.state[1:]
         try:
-            r = self.__memoize_think[k]
+            r = self._memoize_think[k]
             core.MEMOIZED_NODES_HITS += 1
             return r
         except KeyError:
@@ -161,7 +161,7 @@ class AI:
                 if stop:
                     break
 
-            self.__memoize_think[k] = (result, HH, alpha, beta)
+            self._memoize_think[k] = (result, HH, alpha, beta)
             return result, HH, alpha, beta
 
         # Not a leaf in the search tree. Alpha-Beta minimax
@@ -211,7 +211,7 @@ class AI:
                 break
 
         player.distances.pop_state()
-        self.__memoize_think[k] = result, HH, alpha, beta
+        self._memoize_think[k] = result, HH, alpha, beta
         # DEBUG__
         # print(result)
         return result, HH, alpha, beta
