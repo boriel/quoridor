@@ -21,6 +21,7 @@ class Wall(Drawable):
         self.board = board
         self.horiz: bool = horiz
         self.coord = coord
+        self._hash = hash((self.horiz, self.coord))
 
     def __eq__(self, other) -> bool:
         assert isinstance(other, Wall)
@@ -30,7 +31,7 @@ class Wall(Drawable):
         return "<Wall: %i, %i, %i>" % (self.coord.row, self.coord.col, int(self.horiz))
 
     def __hash__(self):
-        return hash((self.horiz, self.coord))
+        return self._hash
 
     @property
     def coords(self):
