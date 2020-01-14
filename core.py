@@ -125,9 +125,6 @@ class DistArray(CellArray):
     def draw(self):
         """ Displays distance numbers in the screen
         """
-        if not cfg.__DEBUG__:
-            return
-
         for i in range(self.rows):
             for j in range(self.cols):
                 r = self.board[i][j].rect
