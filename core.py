@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import re
-import typing
+from typing import List
 import pygame
 
 import config as cfg
@@ -31,7 +31,7 @@ class CellArray:
         self.cols = board.cols
         self.array = [[value for _ in range(self.cols)] for _ in range(self.rows)]
 
-    def __getitem__(self, i) -> typing.List[any]:
+    def __getitem__(self, i) -> List[any]:
         return self.array[i]
 
 
