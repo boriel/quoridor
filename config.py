@@ -75,3 +75,6 @@ SERVER_URL = 'http://{}:{}'.format(SERVER_ADDR, PORT)
 
 # Default AI playing level
 LEVEL = 0
+
+# Infinite
+INF = 99

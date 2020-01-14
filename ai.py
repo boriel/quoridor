@@ -5,6 +5,7 @@ import re
 from helpers import log, LogLevel
 import core
 import config as cfg
+from config import INF
 
 from entities.wall import Wall
 
@@ -43,7 +44,7 @@ class AI(object):
                 for horiz in (False, True):
                     wall = Wall(self.board.screen, self.board, color, i, j, horiz)
                     if self.board.can_put_wall(wall):
-                        tmp += [wall]
+                        tmp.append(wall)
 
         core.MEMOIZED_WALLS[k] = tmp
         return result + tmp
@@ -66,7 +67,7 @@ class AI(object):
         actions = self.pawn.valid_moves
         for move in actions:
             if move in self.pawn.goals:
-                return move, -99
+                return move, -INF
 
         self.pawn.percent = 0  # Percentage done
         move, h, alpha, beta = self.think(bool(self.level % 2))
@@ -74,7 +75,7 @@ class AI(object):
         self.distances.clean_memo()
         return move, h
 
-    def think(self, MAX, ilevel=0, alpha=99, beta=-99):
+    def think(self, MAX, ilevel=0, alpha=INF, beta=-INF):
         """ Returns best movement with the given level of
         analysis, and returns it as a Wall (if a wall
         must be put) or as a coordinate pair.
@@ -97,7 +98,7 @@ class AI(object):
         stop = False
 
         if ilevel >= self.level:  # OK we must return the movement
-            HH = 99
+            HH = INF
             h0 = self.distances.shortest_path_len
             hh0 = self.board.pawns[(self.board.player + 1) % 2].distances.shortest_path_len
             # next_player = (self.board.player + 1) % len(self.board.pawns)
@@ -155,7 +156,7 @@ class AI(object):
             return result, HH, alpha, beta
 
         # Not a leaf in the search tree. Alpha-Beta minimax
-        HH = -99 if MAX else 99
+        HH = -INF if MAX else INF
         player = self.board.current_player
         player.distances.push_state()
         r = self.available_actions

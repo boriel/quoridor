@@ -44,7 +44,7 @@ class DistArray(CellArray):
     """
     def __init__(self, pawn):
         self.pawn = pawn
-        CellArray.__init__(self, pawn.board, 99)
+        CellArray.__init__(self, pawn.board, cfg.INF)
 
         self.locks = CellArray(self.board, False)
         self.queue = []
@@ -81,7 +81,7 @@ class DistArray(CellArray):
 
         for i in range(self.rows):
             for j in range(self.cols):
-                self.array[i][j] = 99
+                self.array[i][j] = cfg.INF
 
         for i, j in self.pawn.goals:
             self.array[i][j] = 0  # Already in the goal
@@ -139,7 +139,7 @@ class DistArray(CellArray):
 
     def push_state(self):
         self.stack += [self.array]
-        CellArray.__init__(self, self.pawn.board, 99)
+        CellArray.__init__(self, self.pawn.board, cfg.INF)
 
     def pop_state(self):
         self.array = self.stack.pop()
