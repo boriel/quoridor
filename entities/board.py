@@ -13,6 +13,8 @@ from .pawn import Pawn
 from .cell import Cell
 from .wall import Wall
 
+from config import DIR
+
 
 class Board(Drawable):
     """ Quoridor board.
@@ -151,11 +153,11 @@ class Board(Drawable):
         i, j = wall.row, wall.col
 
         if wall.horiz:
-            self.board[i][j].set_path('S', False)
-            self.board[i][j + 1].set_path('S', False)
+            self.board[i][j].set_path(DIR.S, False)
+            self.board[i][j + 1].set_path(DIR.S, False)
         else:
-            self.board[i][j].set_path('W', False)
-            self.board[i + 1][j].set_path('W', False)
+            self.board[i][j].set_path(DIR.W, False)
+            self.board[i + 1][j].set_path(DIR.W, False)
 
         self._status = None
 
@@ -170,11 +172,11 @@ class Board(Drawable):
         i, j = wall.row, wall.col
 
         if wall.horiz:
-            self.board[i][j].set_path('S', True)
-            self.board[i][j + 1].set_path('S', True)
+            self.board[i][j].set_path(DIR.S, True)
+            self.board[i][j + 1].set_path(DIR.S, True)
         else:
-            self.board[i][j].set_path('W', True)
-            self.board[i + 1][j].set_path('W', True)
+            self.board[i][j].set_path(DIR.W, True)
+            self.board[i + 1][j].set_path(DIR.W, True)
 
         self._status = None
 
