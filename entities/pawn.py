@@ -4,7 +4,7 @@ import time
 import pygame
 import socket
 import xmlrpc
-import typing
+from typing import List, Tuple, NamedTuple
 
 import config as cfg
 import core
@@ -13,7 +13,7 @@ from helpers import log
 from .drawable import Drawable
 
 
-class Coord(typing.NamedTuple):
+class Coord(NamedTuple):
     row: int
     col: int
 
@@ -119,27 +119,26 @@ class Pawn(Drawable):
     def rect(self):
         return self.board[self.i][self.j].rect
 
-    def can_go(self, direction):
-        """ One of 'N', 'S', 'E', 'W'
-        Returns False if can't go in that direction. Otherwise, returns
-        a list of possible coordinates.
+    def can_go(self, direction) -> List[Tuple[int, int]]:
+        """ Direction is one of 'N', 'S', 'E', 'W'
+        Returns te list of new coordinates the pawn can move by going into that direction, or None otherwise.
+        Usually it's just one coordinate or empty (not possible), but sometimes it can be two coordinates if the
+        pawn can move diaginally by jumping a confronting opponent.
         """
-        if self.cell is None:
-            return False  # Uninitialized
+        assert self.cell is not None, "Cell({}, {}) is uninitialized".format(self.i, self.j)
 
         d = direction.upper()
-        if d not in cfg.dirs:
-            return False  # Unknown move
+        assert d in cfg.dirs, "Invalid move '{}'".format(direction)
 
         if self.cell.path[d] is False:
-            return False  # Blocked in that direction
+            return []  # Blocked in that direction
 
         i, j = cfg.dirs_delta[d]
         i += self.i
         j += self.j
 
         if not self.board.in_range(i, j):
-            return False
+            return []
 
         if self.board[i][j].pawn is None:  # Is it free?
             return [(i, j)]
@@ -160,28 +159,26 @@ class Pawn(Drawable):
                     continue
 
                 if self.board[i2][j2].pawn is None:
-                    result += [(i2, j2)]
+                    result.append((i2, j2))
 
         return result
 
     @property
-    def valid_moves(self):
+    def valid_moves(self) -> List[Tuple[int, int]]:
         """ Returns a list of valid moves as a tuples of (row, col)
         coordinates
         """
-        result = []
+        result: List[Tuple[int, int]] = []
 
         if self.cell is None:
             return result
 
         for d in cfg.dirs:  # Try each direction
-            coords = self.can_go(d)
-            if coords:
-                result += coords
+            result.extend(self.can_go(d))
 
         return result
 
-    def valid_moves_from(self, i, j):
+    def valid_moves_from(self, i: int, j: int) -> List[Tuple[int, int]]:
         """ Returns a list of valid moves from (i, j).
         (i, j) can be a different position from the
         current one.
@@ -193,7 +190,7 @@ class Pawn(Drawable):
 
         return result
 
-    def can_move(self, i, j):
+    def can_move(self, i: int, j: int) -> bool:
         """ Returns whether the pawn can move to position
         (i, j)
         """
@@ -213,7 +210,7 @@ class Pawn(Drawable):
             self.i, self.j = row, col
             self.cell = self.board[row][col]
 
-    def can_reach_goal(self, board=None):
+    def can_reach_goal(self, board=None) -> bool:
         """ True if this player can reach a goal,
         false if it is blocked and there's no way to reach it.
         """
@@ -240,9 +237,10 @@ class Pawn(Drawable):
 
     @property
     def status(self):
-        """ Returns a string containing 'IJ' coordinates.
+        """ Returns a string containing i,j,w being i, j the pawn coordinates
+        and w the number of remaining walls
         """
-        return str(self.i) + str(self.j) + '%02i' % self.walls
+        return '%i%i%02i' % (self.i, self.j, self.walls)
 
     @property
     def coord(self) -> Coord:
