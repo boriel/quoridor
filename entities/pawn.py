@@ -167,7 +167,7 @@ class Pawn(Drawable):
         (i, j) can be a different position from the
         current one.
         """
-        current_pos = self.coord  # Saves current position
+        current_pos = self._coord  # Saves current position
         self._coord = coord
         result = self.valid_moves
         self._coord = current_pos  # Restores current position
