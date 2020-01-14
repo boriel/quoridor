@@ -123,6 +123,11 @@ class DistArray(CellArray):
         self.pawn.cell = cell
 
     def draw(self):
+        """ Displays distance numbers in the screen
+        """
+        if not cfg.__DEBUG__:
+            return
+
         for i in range(self.rows):
             for j in range(self.cols):
                 r = self.board[i][j].rect
@@ -130,7 +135,7 @@ class DistArray(CellArray):
                 r.y = r.y + r.height - cfg.FONT_SIZE
                 r.width = cfg.FONT_SIZE
                 r.height = cfg.FONT_SIZE
-                pygame.draw.rect(self.screen, cfg.FONT_BG_COLOR, r, 0)  # Erases previous number
+                pygame.draw.rect(self.pawn.screen, cfg.FONT_BG_COLOR, r, 0)  # Erases previous number
                 self.board.msg(r.x, r.y, str(self.array[i][j]))
 
     def push_state(self):
