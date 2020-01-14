@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from typing import Set, List
 import pygame
 
 from helpers import log
@@ -28,13 +29,14 @@ class Board(Drawable):
                  border_size=cfg.BOARD_BRD_SIZE):
 
         Drawable.__init__(self, screen=screen, color=color, border_color=border_color, border_size=border_size)
-        self.rows = rows
-        self.cols = cols
+        self.rows: int = rows
+        self.cols: int = cols
         self.cell_pad = cell_padding
         self.mouse_wall = None  # Wall painted on mouse move
-        self.player = 0  # Current player 0 or 1
+        self.player: int = 0  # Current player 0 or 1
         self.board = []
         self.computing = False  # True if a non-human player is moving
+        self._status = None
 
         # Create NETWORK server
         try:
@@ -53,7 +55,7 @@ class Board(Drawable):
             for j in range(cols):
                 self.board[-1] += [Cell(screen, self, i, j)]
 
-        self.pawns = []
+        self.pawns: List[Pawn] = []
         self.pawns += [Pawn(screen=screen,
                             board=self,
                             color=cfg.PAWN_A_COL,
@@ -72,7 +74,7 @@ class Board(Drawable):
 
         self.regenerate_board(cfg.CELL_COLOR, cfg.CELL_BORDER_COLOR)
         self.num_players = cfg.DEFAULT_NUM_PLAYERS
-        self.walls = []  # Walls placed on board
+        self.walls: Set[Wall] = set()  # Walls placed on board
         self.draw_players_info()
         self._AI = []
         # self._AI += [AI(self.pawns[0])]
@@ -109,7 +111,7 @@ class Board(Drawable):
         """ Draws a squared n x n board, defaults
         to the standard 9 x 9
         """
-        Drawable.draw(self)
+        super().draw()
 
         for y in range(self.rows):
             for x in range(self.cols):
@@ -124,28 +126,28 @@ class Board(Drawable):
         for wall in self.walls:
             wall.draw()
 
-    def cell(self, row, col):
+    def cell(self, row: int, col: int) -> Cell:
         """ Returns board cell at the given
         row and column
         """
         return self.board[row][col]
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> List[Cell]:
         return self.board[i]
 
-    def in_range(self, col, row):
+    def in_range(self, col: int, row: int) -> bool:
         """ Returns whether te given coordinate are within the board or not
         """
         return 0 <= col < self.cols and 0 <= row < self.rows
 
-    def putWall(self, wall):
+    def putWall(self, wall: Wall) -> None:
         """ Puts the given wall on the board.
         The cells are updated accordingly
         """
         if wall in self.walls:
             return  # If already put, nothing to do
 
-        self.walls += [wall]
+        self.walls.add(wall)
         i, j = wall.row, wall.col
 
         if wall.horiz:
@@ -155,7 +157,9 @@ class Board(Drawable):
             self.board[i][j].set_path('W', False)
             self.board[i + 1][j].set_path('W', False)
 
-    def removeWall(self, wall):
+        self._status = None
+
+    def removeWall(self, wall: Wall) -> None:
         """ Removes a wall from the board.
         The cells are updated accordingly
         """
@@ -171,6 +175,8 @@ class Board(Drawable):
         else:
             self.board[i][j].set_path('W', True)
             self.board[i + 1][j].set_path('W', True)
+
+        self._status = None
 
     def onMouseClick(self, x, y):
         """ Dispatch mouse click Event
@@ -400,6 +406,7 @@ class Board(Drawable):
         else:
             log('Player %i moves to (%i, %i)' % (player_id, action[0], action[1]))
             self.current_player.move_to(*action)
+            self._status = None
             net_act = list(action)
 
         for pawn in self.pawns:
@@ -446,13 +453,12 @@ class Board(Drawable):
     def status(self):
         """ Status serialization in a t-uple
         """
-        result = str(self.player)
+        if self._status is not None:
+            return self._status
 
-        for p in self.pawns:
-            result += p.status
-
-        for i in range(self.rows - 1):
-            for j in range(self.cols - 1):
-                result += self.board[i][j].status
+        result = str(self.player)  # current player
+        result += ''.join(p.status for p in self.pawns)
+        result += ''.join(self.board[i][j].status for j in range(self.cols - 1) for i in range(self.rows - 1))
+        self._status = result
 
         return result
