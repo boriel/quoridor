@@ -72,12 +72,11 @@ class DistArray(CellArray):
         """
         k = self.board.status
         try:
-            self.array = copy.deepcopy(self.MEMOIZE_DISTANCES[k])
+            self.array = self.MEMOIZE_DISTANCES[k]
             self.MEMO_HITS += 1
             return
         except KeyError:
             self.MEMO_COUNT += 1
-            pass
 
         for i in range(self.rows):
             for j in range(self.cols):
@@ -138,7 +137,7 @@ class DistArray(CellArray):
                 self.board.msg(r.x, r.y, str(self.array[i][j]))
 
     def push_state(self):
-        self.stack += [self.array]
+        self.stack.append(self.array)
         CellArray.__init__(self, self.pawn.board, cfg.INF)
 
     def pop_state(self):
