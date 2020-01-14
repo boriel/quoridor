@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from typing import List
 import pygame
 
 import config as cfg
@@ -37,52 +38,40 @@ class Cell(Drawable):
         self.pawn = pawn
         self.board = board
         self.walls = []  # Walls lists
-        self.i = i
-        self.j = j
-        self.has_focus = False  # True if mouse on cell
-        self.status = '00'  # S and E walls
+        self.i: int = i
+        self.j: int = j
+        self.has_focus: bool = False  # True if mouse on cell
 
         # Available paths
-        self.path = {}
-        for d in cfg.dirs:
-            self.path[d] = True
+        self.path: List[bool] = [True] * len(cfg.DIRS)
 
         if i == 0:
-            self.path['N'] = False
-        elif j == 0:
-            self.path['E'] = False
+            self.set_path(cfg.DIR.N, False)
         elif i == self.board.rows - 1:
-            self.path['S'] = False
-            self.status = '10'
-        elif j == self.board.cols - 1:
-            self.path['W'] = False
-            self.status = '01'
+            self.set_path(cfg.DIR.S, False)
 
-    def set_path(self, direction, value):
+        if j == 0:
+            self.set_path(cfg.DIR.E, False)
+        elif j == self.board.cols - 1:
+            self.set_path(cfg.DIR.W, False)
+
+    def set_path(self, direction: int, value: bool) -> None:
         """ Sets the path 'N', 'S', 'W', E', to True or False.
         False means no way in that direction. Updates neighbour
         cells accordingly.
         """
-        d = direction.upper()
-        self.path[d] = value
-        i1, j1 = cfg.dirs_delta[d]
+        self.path[direction] = value
+        i1, j1 = cfg.DIRS_DELTA[direction]
         i = self.i + i1
         j = self.j + j1
-
-        s = str(int(value))  # '0' or '1'
-        if d == 'S':
-            self.status = s + self.status[-1]
-        elif d == 'W':
-            self.status = self.status[0] + s
 
         if not self.board.in_range(i, j):
             return  # Nothing to do
 
-        self.board[i][j].path[cfg.opposite_dirs[d]] = value
+        self.board[i][j].path[cfg.OPPOSITE_DIRS[direction]] = value
 
     def draw(self):
         Drawable.draw(self)
-
         if self.pawn:
             self.pawn.draw()
 
@@ -111,3 +100,9 @@ class Cell(Drawable):
         """ Returns Cell owns rect
         """
         return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    @property
+    def status(self) -> str:
+        """ Returns Cell status as a string
+        """
+        return ''.join('01'[self.path[d]] for d in (cfg.DIR.S, cfg.DIR.W))
