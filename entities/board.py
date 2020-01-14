@@ -264,7 +264,7 @@ class Board(Drawable):
         return result
 
     def wall(self, x, y) -> Union[Wall, None]:
-        """ Returns which wall is below mouse cursor at x, y coords.
+        """ Factory which returns which wall is below mouse cursor at x, y coords.
         Returns None if no wall matches x, y coords
         """
         if not self.rect.collidepoint(x, y):
@@ -287,7 +287,14 @@ class Board(Drawable):
         if i > 7 or j > 7:
             return None
 
-        return Wall(self.screen, self, cell.wall_color, Coord(i, j), horiz)
+        return self.new_wall(Coord(i, j), horiz, cell.wall_color)
+
+    def new_wall(self, coord: Coord, horiz: bool, color: pygame.Color = None) -> Wall:
+        """ Wall factory. Creates a new wall
+        """
+        if color is None:
+            color = self.board[0][0].wall_color
+        return Wall(self.screen, self, color, coord, horiz)
 
     @property
     def x(self):
