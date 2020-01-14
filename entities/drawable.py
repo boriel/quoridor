@@ -10,9 +10,9 @@ class Drawable(abc.ABC):
     """
     def __init__(self,
                  screen: pygame.Surface,
-                 color=None,
-                 border_color=None,
-                 border_size=None):
+                 color: pygame.Color = None,
+                 border_color: pygame.Color = None,
+                 border_size: pygame.Color = None):
         self.screen = screen  # screen to paint to
         self.color = color
         self.border_color = border_color
@@ -34,7 +34,7 @@ class Drawable(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def rect(self):
+    def rect(self) -> pygame.Rect or None:
         """ Must be overloaded by children classes
         """
         return None
