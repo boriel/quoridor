@@ -44,7 +44,7 @@ class Coord(CoordMixIn):
     def __copy__(self):
         return self.__class__(self._row, self._col)
 
-    def copy(self) -> CoordMixIn:
+    def copy(self):
         return self.__copy__()
 
     @property
