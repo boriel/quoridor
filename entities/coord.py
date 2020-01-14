@@ -4,8 +4,7 @@
 class CoordMixIn:
     """ Implements a coordinate
     """
-    row: int = None
-    col: int = None
+    __slots__ = 'row', 'col'
 
     def __repr__(self):
         return '{}<{}, {}>'.format(self.__class__.__name__, self.row, self.col)
@@ -25,32 +24,27 @@ class CoordMixIn:
 class Coord(CoordMixIn):
     """ Coordinate (immutable) object (row, col).
     """
+    __slots__ = '_hash'
+
     def __init__(self, row: int, col: int):
-        self._row = row
-        self._col = col
+        self.row = row
+        self.col = col
+        self._hash = hash((self.row, self.col))
 
     def __eq__(self, other: CoordMixIn) -> bool:
-        return (self._row, self._col) == (other.row, other.col)
+        return (self.row, self.col) == (other.row, other.col)
 
     def __hash__(self):
-        return hash((self.row, self.col))
+        return self._hash
 
     def __add__(self, other: CoordMixIn) -> CoordMixIn:
-        return Coord(self._row + other.row, self._col + other.col)
+        return Coord(self.row + other.row, self.col + other.col)
 
     def __sub__(self, other: CoordMixIn) -> CoordMixIn:
-        return Coord(self._row - other.row, self._col - other.col)
+        return Coord(self.row - other.row, self.col - other.col)
 
     def __copy__(self):
-        return self.__class__(self._row, self._col)
+        return self.__class__(self.row, self.col)
 
     def copy(self):
         return self.__copy__()
-
-    @property
-    def row(self) -> int:
-        return self._row
-
-    @property
-    def col(self) -> int:
-        return self._col
