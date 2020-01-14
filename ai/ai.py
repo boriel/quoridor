@@ -95,7 +95,7 @@ class AI:
         else:
             self.pawn.move_to(action.orig)
 
-    def think(self, MAX, ilevel=0, alpha=INF, beta=-INF):
+    def think(self, is_max: bool, ilevel=0, alpha=INF, beta=-INF):
         """ Returns best movement with the given level of
         analysis, and returns it as a Wall (if a wall
         must be put) or as a coordinate pair.
@@ -137,7 +137,7 @@ class AI:
                 # to the goal. So the smallest (NEGATIVE) h the better for ME,
                 # If we are in a MIN level
 
-                if MAX:
+                if is_max:
                     h = -h
                     if h > HH:
                         HH = h
@@ -165,7 +165,7 @@ class AI:
             return result, HH, alpha, beta
 
         # Not a leaf in the search tree. Alpha-Beta minimax
-        HH = -INF if MAX else INF
+        HH = -INF if is_max else INF
         player = self.board.current_player
         player.distances.push_state()
         r = self.available_actions
@@ -182,12 +182,12 @@ class AI:
 
             self.do_action(action)
             self.board.next_player()
-            dummy, h, alpha1, beta1 = self.think(not MAX, ilevel + 1, alpha, beta)
+            dummy, h, alpha1, beta1 = self.think(not is_max, ilevel + 1, alpha, beta)
             # __DEBUG__
             # print action, '|', dummy, h, '<<<'
             self.previous_player()
 
-            if MAX:
+            if is_max:
                 # __DEBUG__
                 # print h, HH
                 if h > HH:  # MAX
