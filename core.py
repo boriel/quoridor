@@ -55,7 +55,7 @@ class DistArray(CellArray):
         """ Frees memory by removing unused states.
         """
         l_ = 1 + len(self.board.pawns) * 4
-        k = self.board.status[l_:]
+        k = self.board.state[l_:]
         k = '.' * l_ + k.replace('1', '.') + '$'
         r = re.compile(k)
 
@@ -67,7 +67,7 @@ class DistArray(CellArray):
         """ Computes minimum distances from the current
         position to the goal.
         """
-        k = self.board.status
+        k = self.board.state
         try:
             self.array = self.MEMOIZE_DISTANCES[k]
             self.MEMO_HITS += 1

@@ -30,7 +30,7 @@ class AI(object):
         if not player.walls:  # Out of walls?
             return result
 
-        k = self.board.status[1 + 4 * len(self.board.pawns):]
+        k = self.board.state[1 + 4 * len(self.board.pawns):]
         try:
             return result + core.MEMOIZED_WALLS[k]
         except KeyError:
@@ -50,10 +50,10 @@ class AI(object):
         return result + tmp
 
     def clean_memo(self):
-        """ Removes useless status from the memoized cache.
+        """ Removes useless state from the memoized cache.
         """
         L = 1 + len(self.board.pawns) * 4
-        k = self.board.status[L:]
+        k = self.board.state[L:]
         k = '.' * L + k.replace('1', '.') + '$'
         r = re.compile(k)
 
@@ -83,7 +83,7 @@ class AI(object):
         MAX is a boolean with tells if this function is
         looking for a MAX (True) value or a MIN (False) value.
         """
-        k = str(ilevel) + self.board.status[1:]
+        k = str(ilevel) + self.board.state[1:]
         try:
             r = self.__memoize_think[k]
             core.MEMOIZED_NODES_HITS += 1
