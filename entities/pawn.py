@@ -119,7 +119,7 @@ class Pawn(Drawable):
     def rect(self):
         return self.board[self.i][self.j].rect
 
-    def can_go(self, direction) -> List[Tuple[int, int]]:
+    def can_go(self, direction: int) -> List[Tuple[int, int]]:
         """ Direction is one of 'N', 'S', 'E', 'W'
         Returns te list of new coordinates the pawn can move by going into that direction, or None otherwise.
         Usually it's just one coordinate or empty (not possible), but sometimes it can be two coordinates if the
@@ -127,13 +127,10 @@ class Pawn(Drawable):
         """
         assert self.cell is not None, "Cell({}, {}) is uninitialized".format(self.i, self.j)
 
-        d = direction.upper()
-        assert d in cfg.dirs, "Invalid move '{}'".format(direction)
-
-        if self.cell.path[d] is False:
+        if self.cell.path[direction] is False:
             return []  # Blocked in that direction
 
-        i, j = cfg.dirs_delta[d]
+        i, j = cfg.DIRS_DELTA[direction]
         i += self.i
         j += self.j
 
@@ -146,12 +143,12 @@ class Pawn(Drawable):
         # Ok there's a pawn at I, J. Check for adjacent
         result = []
 
-        for di in cfg.dirs:  # Check for any direction
-            if di == cfg.opposite_dirs[d]:
+        for di in cfg.DIRS:  # Check for any direction
+            if di == cfg.OPPOSITE_DIRS[direction]:
                 continue
 
             if self.board[i][j].path[di]:
-                i2, j2 = cfg.dirs_delta[di]
+                i2, j2 = cfg.DIRS_DELTA[di]
                 i2 += i
                 j2 += j
 
@@ -173,7 +170,7 @@ class Pawn(Drawable):
         if self.cell is None:
             return result
 
-        for d in cfg.dirs:  # Try each direction
+        for d in cfg.DIRS:  # Try each direction
             result.extend(self.can_go(d))
 
         return result
