@@ -233,7 +233,7 @@ class Pawn(Drawable):
         return False
 
     @property
-    def status(self):
+    def state(self):
         """ Returns a string containing i,j,w being i, j the pawn coordinates
         and w the number of remaining walls
         """
