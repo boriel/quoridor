@@ -42,12 +42,16 @@ def main() -> int:
     core.init()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-l", "--level", dest="level",
+    parser.add_argument("-l", "--level",
                         help="AI player Level. Default is 0 (Easy). Higher is harder)",
                         default=cfg.LEVEL, type=int)
 
+    parser.add_argument('-d', '--debug',
+                        help="Debug mode", action='store_true')
+
     options = parser.parse_args()
     cfg.LEVEL = options.level
+    cfg.__DEBUG__ = options.debug
 
     log('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
     log('This program is Free')
