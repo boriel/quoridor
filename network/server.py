@@ -9,7 +9,7 @@ from socketserver import ThreadingMixIn
 from helpers import log
 import config as cfg
 import core
-from entities.wall import Wall
+from ai.action import Action
 
 
 class EnhancedServer(SimpleXMLRPCServer, ThreadingMixIn):
@@ -68,13 +68,7 @@ class Functions:
         return False
 
     @staticmethod
-    def do_action(self, t):
-        if len(t) == 3:  # It's a wall
-            color = core.BOARD[0][0].wall_color
-            action = Wall(core.BOARD, core.BOARD.screen, color, t[0], t[1], t[2])
-        else:
-            action = tuple(t)
-
+    def do_action(action: Action):
         if core.BOARD.current_player.is_network_player:
             core.BOARD.do_action(action)
 

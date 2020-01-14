@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import re
+from typing import List, Union, Tuple
 
 from helpers import log, LogLevel
 import core
@@ -8,6 +9,8 @@ import config as cfg
 from config import INF
 
 from entities.wall import Wall
+from entities.coord import Coord
+from .action import Action, ActionPlaceWall, ActionMovePawn
 
 
 class AI(object):
@@ -23,9 +26,9 @@ class AI(object):
         log('Player %i is moved by computers A.I. with level %i' % (pawn.id, level), LogLevel.INFO)
 
     @property
-    def available_actions(self):
+    def available_actions(self) -> List[Union[ActionPlaceWall, ActionMovePawn]]:
         player = self.pawn
-        result = [x for x in player.valid_moves]
+        result = [ActionMovePawn(player.coord, x) for x in player.valid_moves]
 
         if not player.walls:  # Out of walls?
             return result
@@ -37,14 +40,14 @@ class AI(object):
             pass
 
         color = self.board[0][0].wall_color
-        tmp = []
+        tmp: List[Union[ActionPlaceWall, ActionMovePawn]] = []
 
         for i in range(self.board.rows - 1):
             for j in range(self.board.cols - 1):
                 for horiz in (False, True):
-                    wall = Wall(self.board.screen, self.board, color, i, j, horiz)
+                    wall = Wall(self.board.screen, self.board, color, Coord(i, j), horiz)
                     if self.board.can_put_wall(wall):
-                        tmp.append(wall)
+                        tmp.append(ActionPlaceWall(wall))
 
         core.MEMOIZED_WALLS[k] = tmp
         return result + tmp
@@ -61,19 +64,36 @@ class AI(object):
             if not r.match(q):
                 del self.__memoize_think[q]
 
-    def move(self):
+    def move(self) -> Tuple[Action, int]:
         """ Return best move according to the deep level
         """
-        actions = self.pawn.valid_moves
-        for move in actions:
-            if move in self.pawn.goals:
-                return move, -INF
+        for coord in self.pawn.valid_moves:
+            if coord in self.pawn.goals:
+                return ActionMovePawn(self.pawn.coord, coord), -INF
 
         self.pawn.percent = 0  # Percentage done
         move, h, alpha, beta = self.think(bool(self.level % 2))
         self.clean_memo()
         self.distances.clean_memo()
         return move, h
+
+    def do_action(self, action: Union[ActionPlaceWall, ActionMovePawn]):
+        """ Simulates the action en background
+        """
+        if isinstance(action, ActionPlaceWall):
+            self.board.putWall(action.wall)
+            self.pawn.walls -= 1
+        else:
+            self.pawn.move_to(action.dest)
+
+    def undo_action(self, action: Union[ActionPlaceWall, ActionMovePawn]):
+        """ Reverts a given action
+        """
+        if isinstance(action, ActionPlaceWall):
+            self.board.removeWall(action.wall)
+            self.pawn.walls += 1
+        else:
+            self.pawn.move_to(action.orig)
 
     def think(self, MAX, ilevel=0, alpha=INF, beta=-INF):
         """ Returns best movement with the given level of
@@ -104,12 +124,7 @@ class AI(object):
             # next_player = (self.board.player + 1) % len(self.board.pawns)
 
             for action in self.available_actions:
-                if isinstance(action, Wall):
-                    self.board.putWall(action)
-                    self.pawn.walls -= 1
-                else:
-                    i, j = self.pawn.i, self.pawn.j
-                    self.pawn.move_to(*action)
+                self.do_action(action)
 
                 p = self.pawn
                 self.board.update_pawns_distances()
@@ -142,13 +157,7 @@ class AI(object):
                 elif self.level == 0 and h == HH and h1 <= h0 and hh1 > hh0:
                     result = action
 
-                #  Undo action
-                if isinstance(action, Wall):
-                    self.board.removeWall(action)
-                    self.pawn.walls += 1
-                else:
-                    self.pawn.move_to(i, j)
-
+                self.undo_action(action)
                 if stop:
                     break
 
@@ -171,15 +180,7 @@ class AI(object):
                     log('Player %i is thinking: %2.0f%% done.' % (player.id, player.percent * 100))
                 self.board.draw_player_info(player.id)
 
-            if isinstance(action, Wall):
-                self.board.putWall(action)
-                self.pawn.walls -= 1
-            else:
-                # __DEBUG__
-                # print action, ilevel
-                i, j = self.pawn.i, self.pawn.j
-                self.pawn.move_to(*action)
-
+            self.do_action(action)
             self.board.next_player()
             dummy, h, alpha1, beta1 = self.think(not MAX, ilevel + 1, alpha, beta)
             # __DEBUG__
@@ -205,13 +206,7 @@ class AI(object):
                     else:
                         alpha = HH
 
-            #  Undo action
-            if isinstance(action, Wall):
-                self.board.removeWall(action)
-                self.pawn.walls += 1
-            else:
-                self.pawn.move_to(i, j)
-
+            self.undo_action(action)
             if stop:
                 break
 

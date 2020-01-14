@@ -3,6 +3,8 @@
 import pygame
 
 from .drawable import Drawable
+from .coord import Coord
+from config import DIR, DIRS_DELTA
 
 
 class Wall(Drawable):
@@ -12,39 +14,36 @@ class Wall(Drawable):
                  screen: pygame.Surface,
                  board,  # parent object
                  color: pygame.Color,
-                 row: int = None,  # Wall coordinates
-                 col: int = None,
+                 coord: Coord = None,  # Wall coordinates
                  horiz: bool = None,  # whether this wall lays horizontal o vertically
                  ):
         super().__init__(screen, color)
         self.board = board
         self.horiz: bool = horiz
-        self.col: int = col
-        self.row: int = row
+        self.coord = coord
 
     def __eq__(self, other) -> bool:
-        return self.horiz == other.horiz and \
-               self.col == other.col and \
-               self.row == other.row
+        assert isinstance(other, Wall)
+        return self.horiz == other.horiz and self.coord == other.coord
 
     def __repr__(self):
-        return "<Wall: %i, %i, %i>" % (self.row, self.col, int(self.horiz))
+        return "<Wall: %i, %i, %i>" % (self.coord.row, self.coord.col, int(self.horiz))
 
     def __hash__(self):
-        return hash((self.horiz, self.row, self.col))
+        return hash((self.horiz, self.coord))
 
     @property
     def coords(self):
         """ Returns a list with 2 t-uples containing coord of
         wall cells. Cells are top / left to the wall.
         """
-        if self.horiz is None or self.col is None or self.row is None:
+        if self.horiz is None or self.coord is None:
             return None
 
         if self.horiz:
-            return [(self.row, self.col), (self.row, self.col + 1)]
+            return [self.coord, self.coord + DIRS_DELTA[DIR.W]]
 
-        return [(self.row, self.col), (self.row + 1, self.col)]
+        return [self.coord, self.coord + DIRS_DELTA[DIR.N]]
 
     @property
     def rect(self):
@@ -52,8 +51,7 @@ class Wall(Drawable):
         if not c:
             return None
 
-        cell = self.board[self.row][self.col]
-
+        cell = self.board.get_cell(self.coord)
         if self.horiz:
             x = cell.x
             y = cell.y + cell.height
@@ -85,13 +83,13 @@ class Wall(Drawable):
             return False
 
         # Only can collide if they form a cross
-        if self.col == wall.col and self.row == wall.row:
+        if self.coord == wall.coord:
             return True
 
         return False
 
     @property
-    def status(self):
+    def state(self) -> str:
         """ Returns a string containing IJH
         """
-        return str(self.col) + str(self.row) + str(int(self.horiz))
+        return "%i%i%i" % (self.coord.row, self.coord.col, self.horiz)

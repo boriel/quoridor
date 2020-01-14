@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from pygame import Color
+from entities.coord import Coord
 
 __doc__ = """ Centralizes all global configuration flags """
 
@@ -60,6 +61,7 @@ GAUGE_BORDER_COLOR = Color(0, 0, 0)
 # Other constants
 PAWN_PADDING = 25  # Pixels right to the board
 
+
 class DIR:
     """ Directions
     """
@@ -70,8 +72,10 @@ class DIR:
 
 
 DIRS = {DIR.N, DIR.S, DIR.E, DIR.W}  # Available directions
-DIRS_DELTA = [(-1, 0), (+1, 0), (0, -1), (0, +1)]  # Delta to add to position to move into that direction
 OPPOSITE_DIRS = [DIR.S, DIR.N, DIR.W, DIR.E]  # Reverse direction
+
+# Delta to add to position to move into that direction
+DIRS_DELTA = [Coord(-1, 0), Coord(+1, 0), Coord(0, -1), Coord(0, +1)]
 
 # Network port
 NETWORK_ENABLED = False  # Set to true to enable network playing

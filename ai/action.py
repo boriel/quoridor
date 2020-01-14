@@ -28,4 +28,4 @@ class ActionMovePawn(Action):
         self.dest = to_
 
     def __repr__(self):
-        return 'Move{{{} -> {}}}>'.format(self.orig, self.dest)
+        return 'Move{{({}, {}) -> ({}, {})}}>'.format(self.orig.row, self.orig.col, self.dest.row, self.dest.col)

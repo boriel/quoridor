@@ -5,16 +5,16 @@ import pygame
 
 import config as cfg
 from .drawable import Drawable
+from .coord import Coord
 
 
 class Cell(Drawable):
-    """ A simple board cell
+    """ A simple board get_cell
     """
     def __init__(self,
                  screen: pygame.Surface,  # Screen display object (pygame surface)
                  board,  # Parent object
-                 i,  # row pos. starting from top
-                 j,  # col pos. starting from left
+                 coord: Coord,
                  x=None,  # absolute screen position
                  y=None,  # absolute screen position
                  width=cfg.CELL_WIDTH,
@@ -24,7 +24,7 @@ class Cell(Drawable):
                  focus_color=cfg.CELL_VALID_COLOR,
                  border_color=cfg.CELL_BORDER_COLOR,
                  border_size=cfg.CELL_BORDER_SIZE,
-                 pawn=None  # Reference to the Pawn this cell contains or None
+                 pawn=None  # Reference to the Pawn this get_cell contains or None
                  ):
 
         super().__init__(screen, color, border_color, border_size)
@@ -38,21 +38,20 @@ class Cell(Drawable):
         self.pawn = pawn
         self.board = board
         self.walls = []  # Walls lists
-        self.i: int = i
-        self.j: int = j
-        self.has_focus: bool = False  # True if mouse on cell
+        self.coord = coord
+        self.has_focus: bool = False  # True if mouse on get_cell
 
         # Available paths
         self.path: List[bool] = [True] * len(cfg.DIRS)
 
-        if i == 0:
+        if coord.row == 0:
             self.set_path(cfg.DIR.N, False)
-        elif i == self.board.rows - 1:
+        elif coord.row == self.board.rows - 1:
             self.set_path(cfg.DIR.S, False)
 
-        if j == 0:
+        if coord.col == 0:
             self.set_path(cfg.DIR.E, False)
-        elif j == self.board.cols - 1:
+        elif coord.col == self.board.cols - 1:
             self.set_path(cfg.DIR.W, False)
 
     def set_path(self, direction: int, value: bool) -> None:
@@ -61,14 +60,11 @@ class Cell(Drawable):
         cells accordingly.
         """
         self.path[direction] = value
-        i1, j1 = cfg.DIRS_DELTA[direction]
-        i = self.i + i1
-        j = self.j + j1
-
-        if not self.board.in_range(i, j):
+        new_coord = self.coord + cfg.DIRS_DELTA[direction]
+        if not self.board.in_range(new_coord):
             return  # Nothing to do
 
-        self.board[i][j].path[cfg.OPPOSITE_DIRS[direction]] = value
+        self.board.get_cell(new_coord).path[cfg.OPPOSITE_DIRS[direction]] = value
 
     def draw(self):
         Drawable.draw(self)
@@ -83,7 +79,7 @@ class Cell(Drawable):
         if self.has_focus or self.pawn:
             return
 
-        if self.board.current_player.can_move(self.i, self.j):
+        if self.board.current_player.can_move(self.coord):
             self.set_focus(True)
 
     def set_focus(self, val):

@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 
-from typing import Set, List
+from typing import Set, List, Union
 import pygame
 
 from helpers import log
 from network.server import EnhancedServer, Functions
 import config as cfg
-from ai import AI
+
+from ai.action import ActionMovePawn, ActionPlaceWall
+from ai.ai import AI
 
 from .drawable import Drawable
 from .pawn import Pawn
 from .cell import Cell
 from .wall import Wall
+from .coord import Coord
 
 from config import DIR
 
@@ -36,7 +39,7 @@ class Board(Drawable):
         self.cell_pad = cell_padding
         self.mouse_wall = None  # Wall painted on mouse move
         self.player: int = 0  # Current player 0 or 1
-        self.board = []
+        self.board: List[List[Cell]] = []
         self.computing = False  # True if a non-human player is moving
         self._state = None
 
@@ -53,25 +56,23 @@ class Board(Drawable):
             self.server = None
 
         for i in range(rows):
-            self.board += [[]]
+            self.board.append([])
             for j in range(cols):
-                self.board[-1] += [Cell(screen, self, i, j)]
+                self.board[-1].append(Cell(screen, self, coord=Coord(i, j)))
 
         self.pawns: List[Pawn] = []
         self.pawns += [Pawn(screen=screen,
                             board=self,
                             color=cfg.PAWN_A_COL,
                             border_color=cfg.PAWN_BORDER_COL,
-                            row=rows - 1,
-                            col=cols >> 1  # , # Middle
+                            coord=Coord(rows - 1, cols >> 1),  # Centered
                             # URL = SERVER_URL + ':%i' % (BASE_PORT + PAWNS)
                             )]
         self.pawns += [Pawn(screen=screen,
                             board=self,
                             color=cfg.PAWN_B_COL,
                             border_color=cfg.PAWN_BORDER_COL,
-                            row=0,
-                            col=cols >> 1  # Middle
+                            coord=Coord(0, col=cols >> 1)  # Centered
                             )]
 
         self.regenerate_board(cfg.CELL_COLOR, cfg.CELL_BORDER_COLOR)
@@ -83,14 +84,13 @@ class Board(Drawable):
         self._AI += [AI(self.pawns[1], level=cfg.LEVEL)]
 
     def regenerate_board(self, c_color, cb_color, c_width=cfg.CELL_WIDTH, c_height=cfg.CELL_HEIGHT):
-        """ Regenerate board colors and cell positions.
+        """ Regenerate board colors and get_cell positions.
         Must be called on initialization or whenever a screen attribute
         changes (eg. color, board size, etc)
         """
         y = self.cell_pad
         for i in range(self.rows):
             x = self.cell_pad
-
             for j in range(self.cols):
                 cell = self.board[i][j]
                 cell.x, cell.y = x, y
@@ -99,15 +99,11 @@ class Board(Drawable):
                 cell.height = c_height
                 cell.width = c_width
                 cell.pawn = None
-
-                for pawn in self.pawns:
-                    if i == pawn.i and j == pawn.j:
-                        pawn.cell = cell
-                        break
-
                 x += c_width + self.cell_pad
-
             y += c_height + self.cell_pad
+
+        for pawn in self.pawns:
+            pawn.cell = self.get_cell(pawn.coord)
 
     def draw(self):
         """ Draws a squared n x n board, defaults
@@ -115,9 +111,9 @@ class Board(Drawable):
         """
         super().draw()
 
-        for y in range(self.rows):
-            for x in range(self.cols):
-                self.board[y][x].draw()
+        for row in self:
+            for cell in row:
+                cell.draw()
 
         if cfg.__DEBUG__:
             for p in self.pawns:
@@ -128,19 +124,24 @@ class Board(Drawable):
         for wall in self.walls:
             wall.draw()
 
-    def cell(self, row: int, col: int) -> Cell:
-        """ Returns board cell at the given
-        row and column
+    def get_cell(self, coord: Coord) -> Cell:
+        """ Returns board get_cell at the given the coord
         """
-        return self.board[row][col]
+        return self.board[coord.row][coord.col]
+
+    def set_cell(self, coord: Coord, value: Cell):
+        """ Updates a cell in the board with the new Cell
+        instance at the given coord
+        """
+        self.board[coord.row][coord.col] = value
 
     def __getitem__(self, i: int) -> List[Cell]:
         return self.board[i]
 
-    def in_range(self, col: int, row: int) -> bool:
+    def in_range(self, coord: Coord) -> bool:
         """ Returns whether te given coordinate are within the board or not
         """
-        return 0 <= col < self.cols and 0 <= row < self.rows
+        return 0 <= coord.col < self.cols and 0 <= coord.row < self.rows
 
     def putWall(self, wall: Wall) -> None:
         """ Puts the given wall on the board.
@@ -150,7 +151,7 @@ class Board(Drawable):
             return  # If already put, nothing to do
 
         self.walls.add(wall)
-        i, j = wall.row, wall.col
+        i, j = wall.coord
 
         if wall.horiz:
             self.board[i][j].set_path(DIR.S, False)
@@ -169,7 +170,7 @@ class Board(Drawable):
             return  # Already removed, nothing to do
 
         self.walls.remove(wall)
-        i, j = wall.row, wall.col
+        i, j = wall.coord
 
         if wall.horiz:
             self.board[i][j].set_path(DIR.S, True)
@@ -186,10 +187,10 @@ class Board(Drawable):
         cell = self.which_cell(x, y)
         if cell is not None:
             pawn = self.current_player
-            if not pawn.can_move(cell.i, cell.j):
+            if not pawn.can_move(cell.coord):
                 return
 
-            self.do_action((cell.i, cell.j))
+            self.do_action(ActionMovePawn(pawn.coord, cell.coord))
             cell.set_focus(False)
             self.draw()
 
@@ -206,7 +207,7 @@ class Board(Drawable):
             return
 
         if self.can_put_wall(wall):
-            self.do_action(wall)
+            self.do_action(ActionPlaceWall(wall))
             self.next_player()
             self.draw_players_info()
 
@@ -225,7 +226,7 @@ class Board(Drawable):
                 self.mouse_wall = None
                 self.draw()
 
-            return  # The focus was on a cell, we're done
+            return  # The focus was on a get_cell, we're done
 
         if not self.current_player.walls:
             return  # The current player has run out of walls. We're done
@@ -239,7 +240,7 @@ class Board(Drawable):
             self.draw()
             wall.draw()
 
-    def can_put_wall(self, wall):
+    def can_put_wall(self, wall) -> bool:
         """ Returns whether the given wall can be put
         on the board.
         """
@@ -262,14 +263,14 @@ class Board(Drawable):
         self.removeWall(wall)
         return result
 
-    def wall(self, x, y):
+    def wall(self, x, y) -> Union[Wall, None]:
         """ Returns which wall is below mouse cursor at x, y coords.
         Returns None if no wall matches x, y coords
         """
         if not self.rect.collidepoint(x, y):
             return None
 
-        # Wall: Guess which top-left cell is it
+        # Wall: Guess which top-left get_cell is it
         j = (x - self.x) // (self.board[0][0].width + self.cell_pad)
         i = (y - self.y) // (self.board[0][0].height + self.cell_pad)
         cell = self.board[i][j]
@@ -286,7 +287,7 @@ class Board(Drawable):
         if i > 7 or j > 7:
             return None
 
-        return Wall(self.screen, self, cell.wall_color, i, j, horiz)
+        return Wall(self.screen, self, cell.wall_color, Coord(i, j), horiz)
 
     @property
     def x(self):
@@ -323,8 +324,8 @@ class Board(Drawable):
             pawn.distances.update()
 
     def which_cell(self, x, y):
-        """ Returns an instance of the cell for which (x, y) screen coord
-        matches. Otherwise, returns None if no cell is at (x, y) screen
+        """ Returns an instance of the get_cell for which (x, y) screen coord
+        matches. Otherwise, returns None if no get_cell is at (x, y) screen
         coords.
         """
         for row in self.board:
@@ -393,63 +394,51 @@ class Board(Drawable):
         for i in range(len(self.pawns)):
             self.draw_player_info(i)
 
-    def do_action(self, action):
+    def do_action(self, action: Union[ActionPlaceWall, ActionMovePawn]):
         """ Performs a playing action: move a pawn or place a barrier.
         Transmit the action to the network, to inform other players.
         """
         player_id = self.current_player.id
 
-        if isinstance(action, Wall):
-            wdir = 'horizontal' if action.horiz else 'vertical'
-            log('Player %i places %s wall at (%i, %i)' % (player_id, wdir, action.col, action.row))
-            self.putWall(action)
+        if isinstance(action, ActionPlaceWall):
+            wdir = 'horizontal' if action.wall.horiz else 'vertical'
+            log('Player %i places %s wall at (%i, %i)' % (player_id, wdir, action.wall.coord.col, action.wall.coord.row))
+            self.putWall(action.wall)
             self.current_player.walls -= 1
-            net_act = [action.row, action.col, action.horiz]
         else:
-            log('Player %i moves to (%i, %i)' % (player_id, action[0], action[1]))
-            self.current_player.move_to(*action)
+            log('Player %i moves to (%i, %i)' % (player_id, action.dest.row, action.dest.col))
+            self.current_player.move_to(action.dest)
             self._state = None
-            net_act = list(action)
 
         for pawn in self.pawns:
             if pawn.is_network_player:
-                pawn.NETWORK.do_action(net_act)
+                pawn.NETWORK.do_action(action)
 
     def computer_move(self):
         """ Performs computer moves for every non-human player
         """
-        try:
-            while self.current_player.AI and not self.finished:
-                self.draw()
-                self.draw_players_info()
-                action, x = self.current_player.AI.move()
-                pygame.mixer.music.load('./media/chime.ogg')
-                pygame.mixer.music.play()
-                self.do_action(action)
-
-                if self.finished:
-                    break
-
-                self.next_player()
-
+        while self.current_player.AI and not self.finished:
             self.draw()
             self.draw_players_info()
-            self.computing = False
+            action, x = self.current_player.AI.move()
+            pygame.mixer.music.load('./media/chime.ogg')
+            pygame.mixer.music.play()
+            self.do_action(action)
 
-        except AttributeError:
-            # This exception is only raised (or should be) on users Break
-            pass
+            if self.finished:
+                break
+
+            self.next_player()
+
+        self.draw()
+        self.draw_players_info()
+        self.computing = False
 
     @property
     def finished(self):
-        """ Returns whether the match has finished
-        or not.
+        """ Returns whether the match has finished or not.
         """
-        for pawn in self.pawns:
-            if (pawn.i, pawn.j) in pawn.goals:
-                return True
-
-        return False
+        return any(pawn.coord in pawn.goals for pawn in self.pawns)
 
     @property
     def state(self):

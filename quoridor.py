@@ -10,7 +10,6 @@ import argparse
 from helpers import log
 import config as cfg
 import core
-from network.server import EnhancedServer
 
 from entities.board import Board
 
@@ -85,7 +84,7 @@ def main() -> int:
 
     pygame.quit()
     if cfg.NETWORK_ENABLED:
-        EnhancedServer.terminate_server()
+        board.server.terminate()
 
     log('Memoized nodes: %i' % core.MEMOIZED_NODES)
     log('Memoized nodes hits: %i' % core.MEMOIZED_NODES_HITS)

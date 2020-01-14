@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import re
-from typing import List
+from typing import List, Dict, Set, Any
 import pygame
 
 import config as cfg
+from entities.coord import Coord
 
 # Core (shared) data. Must be initialized invoking init()
 # This global counter counts the total number of players instantiated (Pawns)
 PAWNS = None
 
 # Memoized put-wall cache
-MEMOIZED_WALLS = None
+MEMOIZED_WALLS: Dict[str, Any] = {}
 
 # --- Statistics ---
 MEMOIZED_NODES = None  # Memoized AI Nodes
@@ -29,22 +30,27 @@ class CellArray:
         self.board = board
         self.rows = board.rows
         self.cols = board.cols
-        self.array = [[value for _ in range(self.cols)] for _ in range(self.rows)]
+        self.array: List[List[Any]] = [[value for _ in range(self.cols)] for _ in range(self.rows)]
 
-    def __getitem__(self, i) -> List[any]:
+    def __getitem__(self, i: int) -> List[any]:
         return self.array[i]
+
+    def get_cell(self, coord: Coord):
+        return self.array[coord.row][coord.col]
+
+    def set_cell(self, coord: Coord, value) -> None:
+        self.array[coord.row][coord.col] = value
 
 
 class DistArray(CellArray):
     """ An array which calculates minimum distances
-    for each cell.
+    for each get_cell.
     """
     def __init__(self, pawn):
         self.pawn = pawn
-        CellArray.__init__(self, pawn.board, cfg.INF)
+        super().__init__(pawn.board, cfg.INF)
 
-        self.locks = CellArray(self.board, False)
-        self.queue = []
+        self.queue: Set[Coord] = set()
         self.MEMOIZE_DISTANCES = {}
         self.MEMO_HITS = 0
         self.MEMO_COUNT = 0
@@ -79,46 +85,34 @@ class DistArray(CellArray):
             for j in range(self.cols):
                 self.array[i][j] = cfg.INF
 
-        for i, j in self.pawn.goals:
-            self.array[i][j] = 0  # Already in the goal
-            self.lock(i, j)
+        for goal in self.pawn.goals:
+            self.set_cell(goal, 0)  # Already in the goal
+            self.queue.add(goal)
 
         self.update_distances()
         self.MEMOIZE_DISTANCES[k] = self.array
 
-    def lock(self, i, j):
-        """ Sets the lock to true, and adds the given coord
-        to the queue.
+    def update_cell(self, coord: Coord):
+        """ Updates the get_cell if not locked yet.
         """
-        if self.locks[i][j]:
-            return  # Already locked
-
-        self.locks[i][j] = True
-        self.queue += [(i, j)]
-
-    def update_cell(self, i, j):
-        """ Updates the cell if not locked yet.
-        """
-        if (i, j) in self.pawn.goals:
+        if coord in self.pawn.goals:
             return
 
-        values = [self.array[y][x] for y, x in self.pawn.valid_moves_from(i, j)]
+        values = [self.get_cell(pos) for pos in self.pawn.valid_moves_from(coord)]
         newval = 1 + min(values)
 
-        if newval < self.array[i][j]:
-            self.array[i][j] = newval
-            self.lock(i, j)
+        if newval < self.get_cell(coord):
+            self.set_cell(coord, newval)
+            self.queue.add(coord)
 
     def update_distances(self):
         cell = self.pawn.cell
         self.pawn.cell = None
 
-        while len(self.queue):
-            i, j = self.queue.pop()
-            self.locks[i][j] = 0
-
-            for row, col in self.pawn.valid_moves_from(i, j):
-                self.update_cell(row, col)
+        while self.queue:
+            coord = self.queue.pop()
+            for pos in self.pawn.valid_moves_from(coord):
+                self.update_cell(pos)
 
         self.pawn.cell = cell
 
@@ -137,7 +131,7 @@ class DistArray(CellArray):
 
     def push_state(self):
         self.stack.append(self.array)
-        CellArray.__init__(self, self.pawn.board, cfg.INF)
+        super().__init__(self.pawn.board, cfg.INF)
 
     def pop_state(self):
         self.array = self.stack.pop()
@@ -146,7 +140,7 @@ class DistArray(CellArray):
     def shortest_path_len(self):
         """ Return len of the shortest path
         """
-        return min([self.array[i][j] for i, j in self.pawn.valid_moves])
+        return min([self.get_cell(pos) for pos in self.pawn.valid_moves])
 
 
 def init():
