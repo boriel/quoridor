@@ -48,9 +48,13 @@ def main() -> int:
     parser.add_argument('-d', '--debug',
                         help="Debug mode", action='store_true')
 
+    parser.add_argument('-C', '--cache',
+                        help="Enable persistent memoize cache", action='store_true')
+
     options = parser.parse_args()
     cfg.LEVEL = options.level
     cfg.__DEBUG__ = options.debug
+    cfg.CACHE_ENABLED = options.cache
 
     log('Quoridor AI game, (C) 2009 by Jose Rodriguez (a.k.a. Boriel)')
     log('This program is Free')
@@ -85,6 +89,11 @@ def main() -> int:
     pygame.quit()
     if cfg.NETWORK_ENABLED:
         board.server.terminate()
+
+    if cfg.CACHE_ENABLED:
+        for pawn in board.pawns:
+            if pawn.AI is not None:
+                pawn.AI.flush_cache()
 
     log('Memoized nodes: %i' % core.MEMOIZED_NODES)
     log('Memoized nodes hits: %i' % core.MEMOIZED_NODES_HITS)

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import os
 from pygame import Color
+
 from entities.coord import Coord
 
 __doc__ = """ Centralizes all global configuration flags """
@@ -89,3 +91,9 @@ LEVEL = 0
 
 # Infinite
 INF = 99
+
+# Cache
+CACHE_ENABLED = False
+CACHE_DIR = './__cache'
+CACHE_AI_FNAME = os.path.join(CACHE_DIR, 'ai.memo')
+CACHE_DIST_FNAME = os.path.join(CACHE_DIR, 'dist.memo')

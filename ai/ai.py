@@ -7,6 +7,7 @@ from helpers import log, LogLevel
 import core
 import config as cfg
 from config import INF
+from cache import PersistentDict
 
 from entities.wall import Wall
 from entities.coord import Coord
@@ -20,7 +21,10 @@ class AI:
     def __init__(self, pawn, level=1):
         self.level = level  # Level of difficulty
         self.board = pawn.board
-        self._memoize_think = {}
+        if cfg.CACHE_ENABLED:
+            self._memoize_think = PersistentDict(cfg.CACHE_AI_FNAME, flag='c')
+        else:
+            self._memoize_think = {}
 
         pawn.AI = self
         log('Player %i is moved by computers A.I. with level %i' % (pawn.id, level), LogLevel.INFO)
@@ -55,6 +59,9 @@ class AI:
     def clean_memo(self):
         """ Removes useless state from the memoized cache.
         """
+        if cfg.CACHE_ENABLED:
+            return  # Do not delete anything if cache enabled
+
         L = 1 + len(self.board.pawns) * 4
         k = self.board.state[L:]
         k = '.' * L + k.replace('1', '.') + '$'
@@ -161,7 +168,7 @@ class AI:
                 if stop:
                     break
 
-            self._memoize_think[k] = (result, HH, alpha, beta)
+            self._memoize_think[k] = result, HH, alpha, beta
             return result, HH, alpha, beta
 
         # Not a leaf in the search tree. Alpha-Beta minimax
@@ -228,3 +235,7 @@ class AI:
         """ Switches to previous player.
         """
         self.board.player = (self.board.player + self.board.num_players - 1) % self.board.num_players
+
+    def flush_cache(self):
+        if isinstance(self._memoize_think, PersistentDict):
+            self._memoize_think.close()
