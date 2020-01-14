@@ -102,7 +102,7 @@ class Cell(Drawable):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     @property
-    def status(self) -> str:
-        """ Returns Cell status as a string
+    def state(self) -> str:
+        """ Returns Cell state as a string
         """
         return ''.join('01'[self.path[d]] for d in (cfg.DIR.S, cfg.DIR.W))
