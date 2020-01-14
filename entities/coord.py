@@ -19,6 +19,11 @@ class CoordMixIn:
     def __getitem__(self, item):
         return (self.row, self.col)[item]
 
+    def __copy__(self):
+        result = self.__class__()
+        result.row, result.col = self.row, self.col
+        return result
+
 
 class Coord(CoordMixIn):
     def __init__(self, row: int, col: int):
@@ -41,3 +46,9 @@ class Coord(CoordMixIn):
     def __isub__(self, other: CoordMixIn):
         self.row -= other.row
         self.col -= other.col
+
+    def __copy__(self):
+        return self.__class__(self.row, self.col)
+
+    def copy(self) -> CoordMixIn:
+        return self.__copy__()
