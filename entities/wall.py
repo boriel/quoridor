@@ -11,7 +11,7 @@ class Wall(Drawable):
     def __init__(self,
                  screen: pygame.Surface,
                  board,  # parent object
-                 color,
+                 color: pygame.Color,
                  row: int = None,  # Wall coordinates
                  col: int = None,
                  horiz: bool = None,  # whether this wall lays horizontal o vertically
