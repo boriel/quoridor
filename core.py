@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import re
-import copy
 import typing
 import pygame
 
@@ -21,8 +20,6 @@ MEMOIZED_NODES_HITS = None  # Memoized Cache hits
 # --- Game Board (Singleton)
 BOARD = None
 
-# --- Core classes
-
 
 class CellArray:
     """ Creates an array of the given value, with
@@ -39,7 +36,7 @@ class CellArray:
 
 
 class DistArray(CellArray):
-    """ An array which calculates minimun distances
+    """ An array which calculates minimum distances
     for each cell.
     """
     def __init__(self, pawn):
@@ -67,7 +64,7 @@ class DistArray(CellArray):
                 del self.MEMOIZE_DISTANCES[q]
 
     def update(self):
-        """ Computes minimun distances from the current
+        """ Computes minimum distances from the current
         position to the goal.
         """
         k = self.board.status
