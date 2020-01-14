@@ -81,7 +81,7 @@ class AI:
         """ Simulates the action en background
         """
         if isinstance(action, ActionPlaceWall):
-            self.board.putWall(action.wall)
+            self.board.putWall(self.board.new_wall(action.coord, action.horiz))
             self.pawn.walls -= 1
         else:
             self.pawn.move_to(action.dest)
@@ -90,7 +90,7 @@ class AI:
         """ Reverts a given action
         """
         if isinstance(action, ActionPlaceWall):
-            self.board.removeWall(action.wall)
+            self.board.removeWall(self.board.new_wall(action.coord, action.horiz))
             self.pawn.walls += 1
         else:
             self.pawn.move_to(action.orig)

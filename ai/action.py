@@ -14,10 +14,11 @@ class ActionPlaceWall(Action):
     """ This action describes placing a wall
     """
     def __init__(self, wall: Wall):
-        self.wall = wall
+        self.coord = wall.coord
+        self.horiz = wall.horiz
 
     def __repr__(self):
-        return 'PlaceWall<{}>'.format(self.wall)
+        return 'PlaceWall<{} {}>'.format(self.coord, '|-'[self.horiz])
 
 
 class ActionMovePawn(Action):

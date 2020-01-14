@@ -408,9 +408,9 @@ class Board(Drawable):
         player_id = self.current_player.id
 
         if isinstance(action, ActionPlaceWall):
-            wdir = 'horizontal' if action.wall.horiz else 'vertical'
-            log('Player %i places %s wall at (%i, %i)' % (player_id, wdir, action.wall.coord.col, action.wall.coord.row))
-            self.putWall(action.wall)
+            wdir = 'horizontal' if action.horiz else 'vertical'
+            log('Player %i places %s wall at (%i, %i)' % (player_id, wdir, action.coord.col, action.coord.row))
+            self.putWall(self.new_wall(action.coord, action.horiz))
             self.current_player.walls -= 1
         else:
             log('Player %i moves to (%i, %i)' % (player_id, action.dest.row, action.dest.col))
