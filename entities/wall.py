@@ -30,6 +30,9 @@ class Wall(Drawable):
     def __repr__(self):
         return "<Wall: %i, %i, %i>" % (self.row, self.col, int(self.horiz))
 
+    def __hash__(self):
+        return hash((self.horiz, self.row, self.col))
+
     @property
     def coords(self):
         """ Returns a list with 2 t-uples containing coord of
