@@ -38,7 +38,7 @@ class Board(Drawable):
         self.player: int = 0  # Current player 0 or 1
         self.board = []
         self.computing = False  # True if a non-human player is moving
-        self._status = None
+        self._state = None
 
         # Create NETWORK server
         try:
@@ -159,7 +159,7 @@ class Board(Drawable):
             self.board[i][j].set_path(DIR.W, False)
             self.board[i + 1][j].set_path(DIR.W, False)
 
-        self._status = None
+        self._state = None
 
     def removeWall(self, wall: Wall) -> None:
         """ Removes a wall from the board.
@@ -178,7 +178,7 @@ class Board(Drawable):
             self.board[i][j].set_path(DIR.W, True)
             self.board[i + 1][j].set_path(DIR.W, True)
 
-        self._status = None
+        self._state = None
 
     def onMouseClick(self, x, y):
         """ Dispatch mouse click Event
@@ -408,7 +408,7 @@ class Board(Drawable):
         else:
             log('Player %i moves to (%i, %i)' % (player_id, action[0], action[1]))
             self.current_player.move_to(*action)
-            self._status = None
+            self._state = None
             net_act = list(action)
 
         for pawn in self.pawns:
@@ -452,15 +452,15 @@ class Board(Drawable):
         return False
 
     @property
-    def status(self):
+    def state(self):
         """ Status serialization in a t-uple
         """
-        if self._status is not None:
-            return self._status
+        if self._state is not None:
+            return self._state
 
         result = str(self.player)  # current player
-        result += ''.join(p.status for p in self.pawns)
-        result += ''.join(self.board[i][j].status for j in range(self.cols - 1) for i in range(self.rows - 1))
-        self._status = result
+        result += ''.join(p.state for p in self.pawns)
+        result += ''.join(self.board[i][j].state for j in range(self.cols - 1) for i in range(self.rows - 1))
+        self._state = result
 
         return result
