@@ -13,7 +13,7 @@ from entities.coord import Coord
 from .action import Action, ActionPlaceWall, ActionMovePawn
 
 
-class AI(object):
+class AI:
     """ This class implements the game AI.
     It could be use to implement an Strategy pattern
     """
