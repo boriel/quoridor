@@ -10,19 +10,19 @@ class Wall(Drawable):
     """
     def __init__(self,
                  screen: pygame.Surface,
-                 board: Drawable,  # parent object
+                 board,  # parent object
                  color,
-                 row=None,  # Wall coordinates
-                 col=None,
-                 horiz=None,  # whether this wall lays horizontal o vertically
+                 row: int = None,  # Wall coordinates
+                 col: int = None,
+                 horiz: bool = None,  # whether this wall lays horizontal o vertically
                  ):
         super().__init__(screen, color)
         self.board = board
-        self.horiz = horiz
-        self.col = col
-        self.row = row
+        self.horiz: bool = horiz
+        self.col: int = col
+        self.row: int = row
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.horiz == other.horiz and \
                self.col == other.col and \
                self.row == other.row
