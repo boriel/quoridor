@@ -1,13 +1,14 @@
 #!/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import pygame
 from pygame.locals import *
 from pygame import Color
 import threading
 import argparse
 
-from helpers import log
+from helpers import log, LogLevel
 import config as cfg
 import core
 
@@ -70,6 +71,15 @@ def main() -> int:
     board = core.BOARD = Board(screen)
     board.draw()
     log('System initialized OK')
+
+    if cfg.CACHE_ENABLED:
+        if not os.path.exists(cfg.CACHE_DIR):
+            log('Cache directory {} not found. Creating it...'.format(cfg.CACHE_DIR))
+            os.makedirs(cfg.CACHE_DIR, exist_ok=True)
+
+        if not os.path.isdir(cfg.CACHE_DIR):
+            log('Could not create cache directory {}. Caching disabled'.format(cfg.CACHE_DIR), LogLevel.ERROR)
+            cfg.CACHE_ENABLED = False
 
     cont = True
     while cont:
